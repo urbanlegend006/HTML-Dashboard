@@ -12,6 +12,9 @@ description: "Use for the TOSCA DI Report Dashboard project when implementing fe
 2. **Every implementation needs tests** — any new element (button, header, label,
    section, function, behavior) must have at least one Playwright test validating
    its existence, placement, and behavior. Tests go in `tests/test_dashboard.py`.
+3. **Sync documentation** — every feature change must also update
+   `tosca_unified_dashboard_features-v2.md` with new/changed features, test
+   counts, changelog entry, and any spec changes.
 
 ## Gate 1 — Implement
 
@@ -64,6 +67,24 @@ git commit -m "type: concise summary
 Body with detailed per-file breakdown of changes and rationale."
 
 # Push to current branch (never main)
+git push
+```
+
+## Gate 6 — Update Feature Reference Doc
+
+After push, update `tosca_unified_dashboard_features-v2.md`:
+
+1. Add new feature descriptions under the relevant section (e.g., section 3 for
+   sidebar changes, section 7 for matrix changes, section 8 for exports, etc.)
+2. Add new test cases to the test suite table in section 9
+3. Update the test count references (header row + quick-start section)
+4. Add a changelog entry with date, version, short name, and details
+5. Remove any duplicate content if present
+
+```bash
+# Stage and commit the doc update separately on main
+git add tosca_unified_dashboard_features-v2.md
+git commit -m "docs: update feature reference for [feature name]"
 git push
 ```
 

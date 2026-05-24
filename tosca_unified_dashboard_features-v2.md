@@ -15,7 +15,7 @@ The TOSCA DI Report Dashboard is a **single-file Python utility** (`tosca_di_rep
 | Backend / Generator | Python 3.13+ (stdlib only) | `sqlite3`, `json`, `os`, `collections.Counter` |
 | Frontend Framework | Tailwind CSS (CDN) | Loaded at runtime; customized with Inter font |
 | Charting | Chart.js (CDN) | Bar, Doughnut, and Horizontal Stacked Bar charts |
-| Testing | Pytest + Playwright | Headless Chromium browser tests |
+| Testing | Pytest + Playwright | Headless Firefox browser tests (Chromium headless shell has ICU issues on Windows) |
 | Typography | Google Fonts (Inter) | Loaded at runtime for crisp enterprise feel |
 | Output | Single HTML file | Fully self-contained; no server needed |
 
@@ -25,12 +25,17 @@ The TOSCA DI Report Dashboard is a **single-file Python utility** (`tosca_di_rep
 TOSCA DI Report Dashboard/
 â”œâ”€â”€ tosca_di_report_dashboard.py      # Main generator script
 â”œâ”€â”€ tosca_unified_dashboard_features-v2.md  # This document
+â”œâ”€â”€ opencode.json                     # Codex slash commands
 â”œâ”€â”€ *.db                              # Input SQLite databases
-â”œâ”€â”€ output/                           # Generated dashboard files
+â”œâ”€â”€ .opencode/
+â”‚   â””â”€â”€ skills/
+â”‚       â””â”€â”€ tosca-test-gate/
+â”‚           â””â”€â”€ SKILL.md             # 6-gate development process
+â”œâ”€â”€ output/                           # Generated dashboard files (gitignored)
 â”‚   â”œâ”€â”€ tosca_enterprise_report.html  # The dashboard
 â”‚   â””â”€â”€ tosca_integrity_report.csv   # Exported CSV (user-triggered)
 â””â”€â”€ tests/                            # Automated test suite
-    â”œâ”€â”€ test_dashboard.py             # Playwright integration tests
+    â”œâ”€â”€ test_dashboard.py             # Playwright integration tests (23 tests)
     â””â”€â”€ test_output/                  # Playwright download artifacts
 ```
 
@@ -82,106 +87,27 @@ TOSCA DI Report Dashboard/
 
 The dashboard uses a modern **Sidebar + Main Content** web-app layout with enhanced interactivity.
 
-# TOSCA Data Integrity Report Dashboard â€” Feature & Implementation Reference (v3.1 Enterprise Diagnostics)
+### Sidebar Profile & Downloads Section (v3.5)
 
-> **Purpose:** This document is the single source of truth for the TOSCA DI Report Dashboard project. It captures every implemented feature, architectural decision, and UI/UX specification so that any new team member can onboard immediately without prior context.
-
----
-
-## Project Overview
-
-The TOSCA DI Report Dashboard is a **single-file Python utility** (`tosca_di_report_dashboard.py`) that reads a TOSCA-generated SQLite comparison database and produces a **standalone, portable HTML dashboard** (`output/tosca_enterprise_report.html`). The dashboard visualises data integrity metrics, mismatch breakdowns, and sample-level error details with a premium, modern UI.
-
-### Technology Stack
-
-| Layer | Technology | Notes |
-|---|---|---|
-| Backend / Generator | Python 3.13+ (stdlib only) | `sqlite3`, `json`, `os`, `collections.Counter` |
-| Frontend Framework | Tailwind CSS (CDN) | Loaded at runtime; customized with Inter font |
-| Charting | Chart.js (CDN) | Bar, Doughnut, and Horizontal Stacked Bar charts |
-| Testing | Pytest + Playwright | Headless Chromium browser tests |
-| Typography | Google Fonts (Inter) | Loaded at runtime for crisp enterprise feel |
-| Output | Single HTML file | Fully self-contained; no server needed |
-
-### Folder Structure
-
-```
-TOSCA DI Report Dashboard/
-â”œâ”€â”€ tosca_di_report_dashboard.py      # Main generator script
-â”œâ”€â”€ tosca_unified_dashboard_features-v2.md  # This document
-â”œâ”€â”€ *.db                              # Input SQLite databases
-â”œâ”€â”€ output/                           # Generated dashboard files
-â”‚   â”œâ”€â”€ tosca_enterprise_report.html  # The dashboard
-â”‚   â””â”€â”€ tosca_integrity_report.csv   # Exported CSV (user-triggered)
-â””â”€â”€ tests/                            # Automated test suite
-    â”œâ”€â”€ test_dashboard.py             # Playwright integration tests
-    â””â”€â”€ test_output/                  # Playwright download artifacts
-```
-
-### Design Scope
-
-- **Desktop-only:** The dashboard is designed exclusively for desktop viewports. No mobile/tablet responsive breakpoints are implemented.
-- **Target audience:** QA engineers and system admins reviewing data integrity comparison results.
-
----
-
-## [x] 1. Data Ingestion & Integrity Sync
-
-- [x] **SQLite3 Direct Parsing:** Connects directly to `.db` files produced by TOSCA's comparison engine.
-- [x] **Metadata-Driven KPIs:** Extracts high-level counts (Matched Rows, Processed Rows, Rows with Differences) from `$.reportInfo` keys.
-- [x] **Technical-to-Business Mapping:** Resolves internal `ColumnId` integers into business names via the `ColumnNames` table.
-- [x] **Output Directory Auto-Creation:** The generator automatically creates the `output/` directory if missing.
-
----
-
-## [x] 2. Intelligent Mismatch Analytics (Expanded Diagnostics)
-
-- [x] **Multi-Set Sorting Validation:** Sets-based comparison using `collections.Counter` within `RowKey` groups.
-- [x] **Pairwise Heuristic Classification (15 Error Types):** Expanded from generic string/numeric mismatch to 15 industry-standard enterprise data quality issues:
-    - `Source Value is NULL` & `Target Value is NULL`
-    - `Null Equivalent Mismatch` (e.g., 'N/A', 'Unknown')
-    - `Duplicate Value Mismatch`
-    - `Sorting Issue`
-    - `Whitespace Mismatch`
-    - `Case Sensitivity Mismatch`
-    - `Type Coercion`
-    - `Boolean Format`
-    - `Encoding / Special Char Mismatch`
-    - `Precision / Rounding`
-    - `Data Truncation`
-    - `Date/Timestamp Mismatch`
-    - `Numeric Data Mismatch`
-    - `String Data Mismatch`
-- [x] **Null-like Match Bypass:** Strict bypassing of functional matches where source is empty string `''` and target is SQLite `NULL`, reducing false positives.
-- [x] **Sample Caching:** Stores up to **5 representative samples** per category per column.
-- [x] **New Computed Metrics:**
-    - **Affected Columns**: Count of columns with any issues.
-    - **Critical Fields**: Fields with >1000 total issues.
-    - **NULL Issue Rate**: Percentage of NULL-related issues.
-    - **Dominant Error**: Most frequent error type across all columns.
-
----
-
-## [x] 3. UI/UX â€” Premium Layout & Navigation
-
-The dashboard uses a modern **Sidebar + Main Content** web-app layout with enhanced interactivity.
+- [x] **Profile label:** Changed from "System Admin" to "Automation Team" to reflect the actual audience.
+- [x] **Downloads section header:** A "Downloads" section label sits in the nav between "Test Queries" and the "Excel Report" button.
+- [x] **Excel Report button:** A full-width button matching nav link styling sits under the Downloads header.
+- [x] **Client-side XLSX generation:** Built entirely in the browser via SheetJS CDN (`xlsx-0.20.3`). All 25K+ issue records, error type definitions, and matrix data are embedded as JSON in the HTML for a fully self-contained, offline-capable report (no `openpyxl`, no server-side dependency).
 
 ### Collapsible Mini-Sidebar (v2.2)
-
-The sidebar supports two states â€” **Expanded** (full width) and **Collapsed** (icon rail) â€” with smooth CSS transitions.
 
 - [x] **Expanded State (default, `width: 16rem`):**
     - Shows the "T" logo + "TOSCA DI" branding text.
     - Navigation links display both SVG icon and text label.
-    - **Sidebar order (v3.3):** Overview → Analytics → Integrity Matrix → Test Queries.
-    - User profile block shows "QA" avatar badge + "System Admin / View Only" text.
+    - **Sidebar order (v3.3):** Overview → Analytics → Integrity Matrix → Test Queries → Downloads.
+    - User profile block shows "QA" avatar badge + "Automation Team / View Only" text.
     - A small **left-pointing arrow** (`‹`) toggle button sits right-aligned just above the nav links.
 - [x] **Collapsed State (`width: 4.5rem`):**
     - Only the "T" logo (no text), nav **icons only** (centered), and the "QA" badge (no text) are shown.
     - The toggle arrow flips to **point right** (`›`) indicating "expand".
     - Text labels fade out via `opacity: 0` + `max-width: 0` CSS transitions.
 - [x] **State Persistence:** Sidebar collapsed/expanded state is stored in `localStorage.sidebarCollapsed`.
-- [x] **Arrow Direction Logic:** Controlled via JavaScript â€” the SVG `<path>` `d` attribute is swapped between `M15 19l-7-7 7-7` (left) and `M9 5l7 7-7 7` (right) on toggle.
+- [x] **Arrow Direction Logic:** Controlled via JavaScript — the SVG `<path>` `d` attribute is swapped between `M15 19l-7-7 7-7` (left) and `M9 5l7 7-7 7` (right) on toggle.
 
 ### Other Layout Features
 
@@ -321,7 +247,7 @@ In **Light Mode**, severity-based row background colors are highly saturated. In
 - [x] **Expand All / Collapse All (v3.0):** Instantly expand or collapse all visible Sample Data Explorer accordions at once.
 - [x] **Mismatch Type Dropdown (v3.3):** Dropdown above the matrix to filter rows matching a specific mismatch category (e.g., Whitespace Mismatch, Null Equivalent Mismatch).
 - [x] **Active Filters Badge (v3.3):** A live badge above the matrix shows the current active filters (search term, severity, mismatch type) with a one-click reset button.
-- [x] **Crosshair Hover Highlighting (v3.4):** Hovering over a matrix data cell highlights both the column (vertical) and row (horizontal) simultaneously, creating a true crosshair effect. Column uses indigo-100/50 shades, row uses amber-50/60 shades for clear visual distinction. Dark mode uses subtle 5-10% opacity tints. Highlights are removed when leaving the table entirely (no flicker between cell-to-cell moves).
+- [x] **Crosshair Hover Highlighting (v3.4):** Hovering over a matrix data cell highlights both the column (vertical) and row (horizontal) simultaneously, creating a true crosshair effect. Column uses indigo-100/50 shades, row uses sky blue (bg-sky-50/60, border-sky-200/40) for clear visual distinction (changed from amber in v3.5 for light mode readability). Dark mode uses subtle 5-10% opacity tints. Highlights are removed when leaving the table entirely (no flicker between cell-to-cell moves).
 
 ---
 
@@ -330,6 +256,7 @@ In **Light Mode**, severity-based row background colors are highly saturated. In
 - [x] **Export CSV:** Generates `tosca_integrity_report_[timestamp].csv` with Excel-compatible UTF-8 BOM. Features a timestamped filename and success toast notification.
 - [x] **Copy to Clipboard:** Copies tab-separated data of visible rows (including `% Total`). Features a success toast notification.
 - [x] **Copy SQL Queries:** Dedicated copy buttons for both Source and Target queries in the standalone Test Queries section.
+- [x] **Client-side Excel Report (v3.5):** Downloads an XLSX workbook with 17 sheets (Summary + 15 error-type sheets + All Issues) built entirely in-browser via SheetJS CDN. All 25K+ records embedded as JSON in HTML — no server-side dependency, no openpyxl needed.
 
 ---
 
@@ -354,6 +281,14 @@ Located in `tests/test_dashboard.py`. Uses **Pytest + Playwright**.
 | `test_crosshair_column_highlight` | Hovering a matrix cell highlights its column with indigo classes |
 | `test_crosshair_row_highlight` | Hovering a matrix cell highlights its row with amber classes |
 | `test_crosshair_clears_on_mouseleave` | Crosshair classes are removed when mouse leaves the table |
+| `test_excel_report_button_exists` | Excel Report button is visible in the sidebar |
+| `test_excel_report_button_position` | Excel Report button appears after Test Queries in DOM order |
+| `test_automation_team_label` | Profile label shows "Automation Team" |
+| `test_excel_report_content` | Downloaded XLSX has 17 sheets and correct Summary data |
+| `test_matrix_columns_alignment` | Matrix numeric columns are center-aligned |
+| `test_sticky_columns_opacity` | Sticky first column has correct opacity in light/dark mode |
+| `test_matrix_table_layout_and_widths` | Matrix table has correct layout and column widths |
+| `test_matrix_scrolling` | Matrix container scrolls horizontally and vertically |
 
 **Running tests:**
 
@@ -361,7 +296,7 @@ Located in `tests/test_dashboard.py`. Uses **Pytest + Playwright**.
 # Regenerate the report first
 python tosca_di_report_dashboard.py
 
-# Run all 15 tests (use Firefox if Chromium headless shell has ICU issues on Windows)
+# Run all 23 tests (use Firefox if Chromium headless shell has ICU issues on Windows)
 python -m pytest tests/test_dashboard.py -v --browser firefox
 
 # Or run with Chromium in headed mode for clipboard tests
@@ -383,7 +318,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
    ```bash
    python -m pytest tests/test_dashboard.py -v --browser firefox
    ```
-   All 15 tests should pass. 1 pre-existing failure in `test_copy_to_clipboard` when using Firefox (clipboard-read permission unsupported). Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
+    All 23 tests should pass (22 pass, 1 pre-existing failure in `test_copy_to_clipboard` when using Firefox — clipboard-read permission unsupported). Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
 5. **Key design decisions:**
    - **Light mode is the default.** Dark mode is only used if the user explicitly toggles it or has a saved `localStorage.theme = 'dark'` preference.
    - **Desktop only.** No mobile/tablet breakpoints.
@@ -396,6 +331,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
 
 | Date | Version | Change | Details |
 |---|---|---|---|
+| 2026-05-25 | **v3.5 Excel Report & Skill** | Client-side Excel, sidebar Downloads section, crosshair color, profile label, test-gate skill | Added client-side Excel Report via SheetJS CDN (17 sheets, 25K+ records embedded as JSON). Added "Downloads" sidebar section header with Excel Report button. Changed crosshair row highlight from amber to sky blue (bg-sky-50/60) for light mode readability. Changed profile label from "System Admin" to "Automation Team". Created `.opencode/skills/tosca-test-gate/` with 6-gate development process and `/test-gate` slash command. Added 4 Excel/Downloads Playwright tests + 4 matrix layout tests. Expanded test suite from 15 to 23 tests. Removed output/ files from Git tracking across all branches. | |
 | 2026-05-21 | **v3.4 Scroll-Spy Bugfix & Crosshair** | Scroll-spy fix, Orphaned tab rename, crosshair hover, sidebar nav test | Fixed scroll-spy `sections` array order so Test Queries nav link gets `nav-active` styling. Renamed "Orphaned & Invalid Records" to "Orphaned Records". Replaced column-only hover with full crosshair (row + column) highlighting — column uses indigo, row uses amber for clear visual distinction. Fixed light mode hover colors (indigo-500/10 → indigo-100). Added `test_sidebar_nav_active`. Expanded test suite from 11 to 12 Playwright tests. |
 | 2026-05-21 | **v3.3 Interactivity & UX Polish** | Sidebar reorder, Orphaned tab trim, Dark mode rework, Chart/Matrix filters | Moved Test Queries to last sidebar position. Removed Invalid Source/Target tiles from Orphaned tab (now 2-tile grid: Source Orphans, Target Orphans). Overhauled dark mode to GitHub-dark palette (#0d1117/#161b22). Added bar chart click-to-filter matrix, Mismatch Type dropdown, Active Filters badge, column hover highlighting. Expanded test suite from 7 to 11 Playwright tests. |
 | 2026-05-21 | **v3.2 Navigation & Readability Refresh** | Sidebar Test Queries, Light Default, KPI Title, Readability | Moved Test Queries from the Analytics tab set into a standalone sidebar destination. Added the Summary and KPIs heading above the eight KPI tiles. Restyled Analytics tabs with visible backgrounds and borders. Changed first-load theme behavior to light mode by default while preserving dark-mode toggle persistence. Lightened dark-mode surfaces, improved low-contrast labels, increased matrix/code typography, and updated SQL/DSN panels with theme-aware slate backgrounds. |
