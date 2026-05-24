@@ -7,5 +7,6 @@ __pycache__/
 scratch/
 output/*
 !output/tosca_enterprise_report.html
+!output/tosca_enterprise_report_full_report.xlsx
 tests/__pycache__/
 metadata_info.txt
