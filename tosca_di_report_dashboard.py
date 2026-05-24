@@ -157,14 +157,6 @@ def highlight_sql(sql_text):
     return ''.join(parts)
 
 
-def generate_sparkline_svg(value, seed_extra=''):
-    """Generate a decorative SVG sparkline based on a value hash."""
-    h = hashlib.md5(f"{value}{seed_extra}".encode()).hexdigest()
-    points = [int(h[i:i+2], 16) % 24 + 4 for i in range(0, 20, 2)]
-    coords = ' '.join(f"{i * 10},{p}" for i, p in enumerate(points))
-    return f'<svg class="sparkline-svg" viewBox="0 0 90 32" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="spk{h[:6]}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" class="sparkline-stop1"/><stop offset="100%" class="sparkline-stop2"/></linearGradient></defs><polyline points="{coords}" class="sparkline-line" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><polygon points="0,32 {coords} 90,32" fill="url(#spk{h[:6]})" class="sparkline-fill"/></svg>'
-
-
 ERROR_TYPES = [
     "Source Value is NULL",
     "Target Value is NULL",
@@ -533,12 +525,15 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
         if total > 1000:
             severity_badge = f'<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span><span class="text-red-700 dark:text-red-400 font-bold text-[11px]">Critical ({total:,})</span></span>'
             row_bg = "bg-red-100/60 hover:bg-red-100/80 dark:bg-red-900/10 dark:hover:bg-red-900/20"
+            row_type = "matrix-row-critical"
         elif total > 100:
             severity_badge = f'<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]"></span><span class="text-yellow-700 dark:text-yellow-400 font-bold text-[11px]">Warning ({total:,})</span></span>'
             row_bg = "bg-yellow-100/60 hover:bg-yellow-100/80 dark:bg-yellow-900/10 dark:hover:bg-yellow-900/20"
+            row_type = "matrix-row-warning"
         else:
             severity_badge = f'<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span class="text-slate-600 dark:text-slate-400 font-bold text-[11px]">Info ({total:,})</span></span>'
             row_bg = "bg-white/50 hover:bg-slate-100 dark:bg-[#161b22]/50 dark:hover:bg-slate-800/50"
+            row_type = "matrix-row-info"
 
         # Accordion Samples HTML
         samples_html = ""
@@ -591,7 +586,7 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
 
         # Matrix Row
         table_body += f"""
-        <tr class="{row_bg} border-b border-slate-100 dark:border-slate-800/80 transition-all duration-200 cursor-pointer matrix-row group" onclick="toggleAccordion('{safe_id}')">
+        <tr class="{row_bg} border-b border-slate-100 dark:border-slate-800/80 transition-all duration-200 cursor-pointer {row_type} matrix-row group" onclick="toggleAccordion('{safe_id}')">
             <td class="px-4 py-3 font-bold text-slate-800 dark:text-slate-200 text-xs col-name flex items-center gap-2 sticky left-0 z-10 glass shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                 <div class="w-5 h-5 shrink-0 rounded flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-400 transition-transform group-hover:scale-110">
                     <span class="text-[11px] transition-transform duration-300">▶</span>
@@ -894,22 +889,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                 box-shadow: 0 4px 16px rgba(0,0,0,0.15);
             }}
 
-            /* v4.0 Sparkline */
-            .sparkline-svg {{
-                width: 100%;
-                height: 32px;
-                display: block;
-                margin-top: 12px;
-                opacity: 0.5;
-            }}
-            .sparkline-line {{ stroke: rgba(99,102,241,0.3); }}
-            .sparkline-fill {{ opacity: 0.08; }}
-            .sparkline-stop1 {{ stop-color: rgba(99,102,241,0.15); }}
-            .sparkline-stop2 {{ stop-color: rgba(99,102,241,0); }}
-            .dark .sparkline-line {{ stroke: rgba(99,102,241,0.4); }}
-            .dark .sparkline-fill {{ opacity: 0.12; }}
-            .dark .sparkline-stop1 {{ stop-color: rgba(99,102,241,0.2); }}
-            .dark .sparkline-stop2 {{ stop-color: rgba(99,102,241,0); }}
 
             /* v4.0 Character-level Diff Highlighting */
             .diff-del {{ background: rgba(239,68,68,0.15); color: #dc2626; text-decoration: line-through; border-radius: 2px; padding: 0 2px; }}
@@ -1004,10 +983,112 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
             tbody td.matrix-sticky-total, tbody td.matrix-sticky-pct {{
                 z-index: 10;
             }}
-            th.matrix-sticky-total, th.matrix-sticky-pct,
-            tbody td.matrix-sticky-total, tbody td.matrix-sticky-pct,
-            tfoot td.matrix-sticky-total, tfoot td.matrix-sticky-pct {{
-                background: inherit;
+
+            /* Solid opaque backgrounds for all frozen columns to prevent scroll show-through */
+            #matrixTable th.sticky.left-0,
+            #matrixTable tfoot td.sticky.left-0,
+            #matrixTable th.matrix-sticky-total,
+            #matrixTable th.matrix-sticky-pct,
+            #matrixTable tfoot td.matrix-sticky-total,
+            #matrixTable tfoot td.matrix-sticky-pct {{
+                background-color: #f1f5f9 !important;
+                backdrop-filter: none !important;
+                z-index: 30 !important;
+            }}
+            .dark #matrixTable th.sticky.left-0,
+            .dark #matrixTable tfoot td.sticky.left-0,
+            .dark #matrixTable th.matrix-sticky-total,
+            .dark #matrixTable th.matrix-sticky-pct,
+            .dark #matrixTable tfoot td.matrix-sticky-total,
+            .dark #matrixTable tfoot td.matrix-sticky-pct {{
+                background-color: #1e293b !important;
+                backdrop-filter: none !important;
+                z-index: 30 !important;
+            }}
+
+            /* Light mode opaque cell backgrounds */
+            #matrixTable tr.matrix-row-critical td.sticky.left-0,
+            #matrixTable tr.matrix-row-critical td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-critical td.matrix-sticky-pct {{
+                background-color: #fef2f2 !important;
+                backdrop-filter: none !important;
+            }}
+            #matrixTable tr.matrix-row-warning td.sticky.left-0,
+            #matrixTable tr.matrix-row-warning td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-warning td.matrix-sticky-pct {{
+                background-color: #fffbeb !important;
+                backdrop-filter: none !important;
+            }}
+            #matrixTable tr.matrix-row-info td.sticky.left-0,
+            #matrixTable tr.matrix-row-info td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-info td.matrix-sticky-pct {{
+                background-color: #ffffff !important;
+                backdrop-filter: none !important;
+            }}
+            #matrixTable tr.matrix-row-info.bg-slate-50\\/50 td.sticky.left-0,
+            #matrixTable tr.matrix-row-info.bg-slate-50\\/50 td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-info.bg-slate-50\\/50 td.matrix-sticky-pct {{
+                background-color: #f8fafc !important;
+                backdrop-filter: none !important;
+            }}
+
+            /* Dark mode opaque cell backgrounds */
+            .dark #matrixTable tr.matrix-row-critical td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-critical td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-critical td.matrix-sticky-pct {{
+                background-color: #2c1619 !important;
+                backdrop-filter: none !important;
+            }}
+            .dark #matrixTable tr.matrix-row-warning td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-warning td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-warning td.matrix-sticky-pct {{
+                background-color: #2d2617 !important;
+                backdrop-filter: none !important;
+            }}
+            .dark #matrixTable tr.matrix-row-info td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-info td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-info td.matrix-sticky-pct {{
+                background-color: #161b22 !important;
+                backdrop-filter: none !important;
+            }}
+            .dark #matrixTable tr.matrix-row-info.dark\\:bg-slate-800\\/20 td.sticky.left-0,
+            .dark #matrixTable tr.dark\\:bg-slate-800\\/20 td.matrix-sticky-total,
+            .dark #matrixTable tr.dark\\:bg-slate-800\\/20 td.matrix-sticky-pct {{
+                background-color: #1e2530 !important;
+                backdrop-filter: none !important;
+            }}
+
+            /* Hover background transitions */
+            #matrixTable tr.matrix-row-critical:hover td.sticky.left-0,
+            #matrixTable tr.matrix-row-critical:hover td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-critical:hover td.matrix-sticky-pct {{
+                background-color: #fee2e2 !important;
+            }}
+            #matrixTable tr.matrix-row-warning:hover td.sticky.left-0,
+            #matrixTable tr.matrix-row-warning:hover td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-warning:hover td.matrix-sticky-pct {{
+                background-color: #fef3c7 !important;
+            }}
+            #matrixTable tr.matrix-row-info:hover td.sticky.left-0,
+            #matrixTable tr.matrix-row-info:hover td.matrix-sticky-total,
+            #matrixTable tr.matrix-row-info:hover td.matrix-sticky-pct {{
+                background-color: #f1f5f9 !important;
+            }}
+
+            .dark #matrixTable tr.matrix-row-critical:hover td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-critical:hover td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-critical:hover td.matrix-sticky-pct {{
+                background-color: #3b1c20 !important;
+            }}
+            .dark #matrixTable tr.matrix-row-warning:hover td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-warning:hover td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-warning:hover td.matrix-sticky-pct {{
+                background-color: #3c321d !important;
+            }}
+            .dark #matrixTable tr.matrix-row-info:hover td.sticky.left-0,
+            .dark #matrixTable tr.matrix-row-info:hover td.matrix-sticky-total,
+            .dark #matrixTable tr.matrix-row-info:hover td.matrix-sticky-pct {{
+                background-color: #222a35 !important;
             }}
 
             /* v4.0 Gradient Header */
@@ -1069,7 +1150,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                 .kpi-card::after {{ display: none; }}
                 .stagger-card {{ opacity: 1 !important; animation: none !important; }}
                 .grade-badge {{ animation: none !important; }}
-                .sparkline-svg {{ display: none !important; }}
                 * {{
                     color-adjust: exact !important;
                     -webkit-print-color-adjust: exact !important;
@@ -1167,10 +1247,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Execution Date</span>
                             <p class="text-xs font-black text-indigo-600 dark:text-indigo-400">{report_date}</p>
                         </div>
-                        <div class="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
-                        <button onclick="window.print()" class="print-hide p-2.5 bg-white dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 group" title="Print / Export PDF">
-                            <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        </button>
                         <button id="themeToggle" class="p-2.5 bg-white dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 group">
                             <svg class="w-5 h-5 hidden dark:block group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                             <svg class="w-5 h-5 block dark:hidden group-hover:-rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
@@ -1210,7 +1286,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Source Rows</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{total_rows}">0</h3>
-                            {generate_sparkline_svg(total_rows, 'rows')}
                         </div>
 
                         <!-- Matches -->
@@ -1223,7 +1298,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Identical Matches</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{matched_count}">0</h3>
-                            {generate_sparkline_svg(matched_count, 'matches')}
                         </div>
 
                         <!-- Differences -->
@@ -1236,7 +1310,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Rows with Diffs</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{diff_row_count}">0</h3>
-                            {generate_sparkline_svg(diff_row_count, 'diffs')}
                         </div>
 
                         <!-- Pass Rate -->
@@ -1249,7 +1322,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Overall Pass Rate</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{pass_rate}" data-suffix="%">0%</h3>
-                            {generate_sparkline_svg(pass_rate, 'pass')}
                         </div>
                     </div>
 
@@ -1265,7 +1337,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Affected Columns</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{affected_columns}">0</h3>
-                            {generate_sparkline_svg(affected_columns, 'cols')}
                         </div>
 
                         <!-- Critical Fields -->
@@ -1278,7 +1349,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Critical Fields</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{critical_fields}">0</h3>
-                            {generate_sparkline_svg(critical_fields, 'critical')}
                         </div>
 
                         <!-- NULL Rate -->
@@ -1291,7 +1361,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">NULL Issue Rate</p>
                             <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{null_rate}" data-suffix="%">0%</h3>
-                            {generate_sparkline_svg(null_rate, 'null')}
                         </div>
 
                         <!-- Dominant Error -->
@@ -1304,7 +1373,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Dominant Error</p>
                             <h3 class="text-lg font-black text-slate-800 dark:text-white truncate" title="{dominant_error}">{dominant_error_short}</h3>
-                            {generate_sparkline_svg(dominant_error, 'dominant')}
                         </div>
                     </div>
 
@@ -1568,7 +1636,7 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             </div>
                         </div>
                         <div class="overflow-x-auto relative scroll-smooth rounded-b-2xl" style="max-height: 800px; min-height: 280px;">
-                            <table class="w-full text-left whitespace-nowrap text-xs" id="matrixTable">
+                            <table class="w-full text-left whitespace-nowrap text-xs border-separate" style="border-spacing: 0;" id="matrixTable">
                                 <thead class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-black tracking-wide border-b border-slate-200 dark:border-slate-800 shadow-sm">
                                     <tr>
                                         <th class="px-4 py-3 cursor-pointer sticky left-0 z-30 glass shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] hover:text-indigo-600 transition-colors" onclick="sortTable(0, false)">Field ↕</th>
@@ -1769,7 +1837,7 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
 
 
                     <!-- Footer Branding -->
-                    <footer class="pt-8 border-t border-slate-200 dark:border-slate-800 text-center pb-8 print-hide">
+                    <footer class="pt-8 border-t border-slate-200 dark:border-slate-800 text-center pb-8">
                         <div class="flex items-center justify-center gap-2 mb-2 text-slate-400 dark:text-slate-600">
                             <div class="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-black text-xs">T</div>
                             <span class="text-[10px] font-extrabold uppercase tracking-widest">TOSCA DI</span>
@@ -2575,47 +2643,84 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                 updateArrow(isCollapsed);
             }}
 
-            // Column Hover Highlighting
+            // Crosshair Hover Highlighting (Column + Row)
             document.addEventListener('DOMContentLoaded', () => {{
                 const table = document.querySelector('#matrix table');
                 if (!table) return;
+
+                let lastCol = -1;
+                let lastRow = null;
 
                 table.addEventListener('mouseover', (e) => {{
                     const cell = e.target.closest('td, th');
                     if (!cell) return;
 
                     const colIdx = cell.cellIndex;
-                    if (colIdx === 0 || colIdx >= cell.parentElement.children.length - 2) return;
+                    const row = cell.parentElement;
 
-                    const ths = table.querySelectorAll('thead tr th');
-                    if (ths[colIdx]) ths[colIdx].classList.add('bg-indigo-500/10', 'dark:bg-indigo-400/10');
+                    // Skip if same cell (movement within cell)
+                    if (colIdx === lastCol && row === lastRow) return;
 
-                    const matrixRows = table.querySelectorAll('.matrix-row');
-                    matrixRows.forEach(row => {{
-                        const td = row.cells[colIdx];
-                        if (td) {{
-                            td.classList.add('bg-indigo-500/5', 'dark:bg-indigo-400/5', 'border-x', 'border-indigo-500/20');
-                        }}
-                    }});
+                    // Clean up previous column highlight
+                    if (lastCol >= 0) {{
+                        const ths = table.querySelectorAll('thead tr th');
+                        if (ths[lastCol]) ths[lastCol].classList.remove('bg-indigo-100', 'dark:bg-indigo-400/10');
+                        const matrixRows = table.querySelectorAll('.matrix-row');
+                        matrixRows.forEach(r => {{
+                            const td = r.cells[lastCol];
+                            if (td) td.classList.remove('bg-indigo-50/60', 'dark:bg-indigo-400/5', 'border-x', 'border-indigo-200/40', 'dark:border-indigo-400/20');
+                        }});
+                    }}
+
+                    // Clean up previous row highlight
+                    if (lastRow) {{
+                        lastRow.querySelectorAll('td, th').forEach(td => {{
+                            td.classList.remove('bg-sky-50/60', 'dark:bg-sky-400/5', 'border-y', 'border-sky-200/40', 'dark:border-sky-400/20');
+                        }});
+                    }}
+
+                    // Highlight column (vertical) — skip Field and % columns
+                    if (colIdx !== 0 && colIdx < cell.parentElement.children.length - 2) {{
+                        const ths = table.querySelectorAll('thead tr th');
+                        if (ths[colIdx]) ths[colIdx].classList.add('bg-indigo-100', 'dark:bg-indigo-400/10');
+
+                        const matrixRows = table.querySelectorAll('.matrix-row');
+                        matrixRows.forEach(r => {{
+                            const td = r.cells[colIdx];
+                            if (td) {{
+                                td.classList.add('bg-indigo-50/60', 'dark:bg-indigo-400/5', 'border-x', 'border-indigo-200/40', 'dark:border-indigo-400/20');
+                            }}
+                        }});
+                    }}
+
+                    // Highlight row (horizontal)
+                    if (row) {{
+                        row.querySelectorAll('td, th').forEach(td => {{
+                            td.classList.add('bg-sky-50/60', 'dark:bg-sky-400/5', 'border-y', 'border-sky-200/40', 'dark:border-sky-400/20');
+                        }});
+                    }}
+
+                    lastCol = colIdx;
+                    lastRow = row;
                 }});
 
-                table.addEventListener('mouseout', (e) => {{
-                    const cell = e.target.closest('td, th');
-                    if (!cell) return;
-
-                    const colIdx = cell.cellIndex;
-                    if (colIdx === 0 || colIdx >= cell.parentElement.children.length - 2) return;
-
-                    const ths = table.querySelectorAll('thead tr th');
-                    if (ths[colIdx]) ths[colIdx].classList.remove('bg-indigo-500/10', 'dark:bg-indigo-400/10');
-
-                    const matrixRows = table.querySelectorAll('.matrix-row');
-                    matrixRows.forEach(row => {{
-                        const td = row.cells[colIdx];
-                        if (td) {{
-                            td.classList.remove('bg-indigo-500/5', 'dark:bg-indigo-400/5', 'border-x', 'border-indigo-500/20');
-                        }}
-                    }});
+                table.addEventListener('mouseleave', () => {{
+                    if (lastCol >= 0) {{
+                        const ths = table.querySelectorAll('thead tr th');
+                        if (ths[lastCol]) ths[lastCol].classList.remove('bg-indigo-100', 'dark:bg-indigo-400/10');
+                        const matrixRows = table.querySelectorAll('.matrix-row');
+                        matrixRows.forEach(r => {{
+                            const td = r.cells[lastCol];
+                            if (td) td.classList.remove('bg-indigo-50/60', 'dark:bg-indigo-400/5', 'border-x', 'border-indigo-200/40', 'dark:border-indigo-400/20');
+                        }});
+                    }}
+                    if (lastRow) {{
+                        lastRow.querySelectorAll('td, th').forEach(td => {{
+                            td.classList.remove('bg-sky-50/60', 'dark:bg-sky-400/5', 'border-y', 'border-sky-200/40', 'dark:border-sky-400/20');
+                        }});
+                    }}
+                    lastCol = -1;
+                    lastRow = null;
                 }});
             }});
 
@@ -2697,7 +2802,7 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     print(f"Final Consolidated Dashboard Generated: {output_html}")
 
 if __name__ == "__main__":
-    db_name = "SFT CQAV3.0 QA - Informa vs D1_MIPRANS_OWNER.GC_SFP_HC_DS_ALL_DATA_20260410165257.db"
+    db_name = "tosca_report.db"
     row_keys = ['col1', 'col2', 'col3', 'col4', 'col5']
     generate_unified_dashboard(db_name, row_keys=row_keys)
 

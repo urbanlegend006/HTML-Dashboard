@@ -321,7 +321,7 @@ In **Light Mode**, severity-based row background colors are highly saturated. In
 - [x] **Expand All / Collapse All (v3.0):** Instantly expand or collapse all visible Sample Data Explorer accordions at once.
 - [x] **Mismatch Type Dropdown (v3.3):** Dropdown above the matrix to filter rows matching a specific mismatch category (e.g., Whitespace Mismatch, Null Equivalent Mismatch).
 - [x] **Active Filters Badge (v3.3):** A live badge above the matrix shows the current active filters (search term, severity, mismatch type) with a one-click reset button.
-- [x] **Column Hover Highlighting (v3.3):** Hovering over a matrix data cell highlights the matching column header with a subtle accent background, providing column-level visual focus.
+- [x] **Crosshair Hover Highlighting (v3.4):** Hovering over a matrix data cell highlights both the column (vertical) and row (horizontal) simultaneously, creating a true crosshair effect. Column uses indigo-100/50 shades, row uses amber-50/60 shades for clear visual distinction. Dark mode uses subtle 5-10% opacity tints. Highlights are removed when leaving the table entirely (no flicker between cell-to-cell moves).
 
 ---
 
@@ -351,6 +351,9 @@ Located in `tests/test_dashboard.py`. Uses **Pytest + Playwright**.
 | `test_mismatch_type_dropdown_filter` | Dropdown filter shows/hides rows; active badge appears and resets |
 | `test_bar_chart_click_filters_matrix` | Bar click sets search value and shows active filter badge |
 | `test_sidebar_nav_active` | Verifies all 4 sidebar nav links get `nav-active` class when clicked, including Test Queries |
+| `test_crosshair_column_highlight` | Hovering a matrix cell highlights its column with indigo classes |
+| `test_crosshair_row_highlight` | Hovering a matrix cell highlights its row with amber classes |
+| `test_crosshair_clears_on_mouseleave` | Crosshair classes are removed when mouse leaves the table |
 
 **Running tests:**
 
@@ -358,7 +361,7 @@ Located in `tests/test_dashboard.py`. Uses **Pytest + Playwright**.
 # Regenerate the report first
 python tosca_di_report_dashboard.py
 
-# Run all 12 tests (use Firefox if Chromium headless shell has ICU issues on Windows)
+# Run all 15 tests (use Firefox if Chromium headless shell has ICU issues on Windows)
 python -m pytest tests/test_dashboard.py -v --browser firefox
 
 # Or run with Chromium in headed mode for clipboard tests
@@ -380,7 +383,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
    ```bash
    python -m pytest tests/test_dashboard.py -v --browser firefox
    ```
-   All 12 tests should pass. Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
+   All 15 tests should pass. 1 pre-existing failure in `test_copy_to_clipboard` when using Firefox (clipboard-read permission unsupported). Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
 5. **Key design decisions:**
    - **Light mode is the default.** Dark mode is only used if the user explicitly toggles it or has a saved `localStorage.theme = 'dark'` preference.
    - **Desktop only.** No mobile/tablet breakpoints.
@@ -393,7 +396,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
 
 | Date | Version | Change | Details |
 |---|---|---|---|
-| 2026-05-21 | **v3.4 Scroll-Spy Bugfix & Polish** | Scroll-spy array order fix, Orphaned tab rename, sidebar nav test | Fixed scroll-spy `sections` array order (`['kpi-section', 'charts', 'matrix', 'test-queries']`) so Test Queries nav link gets `nav-active` styling when clicked. Renamed "Orphaned & Invalid Records" tab to "Orphaned Records". Added `test_sidebar_nav_active` to verify all 4 sidebar links highlight correctly. Expanded test suite from 11 to 12 Playwright tests. |
+| 2026-05-21 | **v3.4 Scroll-Spy Bugfix & Crosshair** | Scroll-spy fix, Orphaned tab rename, crosshair hover, sidebar nav test | Fixed scroll-spy `sections` array order so Test Queries nav link gets `nav-active` styling. Renamed "Orphaned & Invalid Records" to "Orphaned Records". Replaced column-only hover with full crosshair (row + column) highlighting — column uses indigo, row uses amber for clear visual distinction. Fixed light mode hover colors (indigo-500/10 → indigo-100). Added `test_sidebar_nav_active`. Expanded test suite from 11 to 12 Playwright tests. |
 | 2026-05-21 | **v3.3 Interactivity & UX Polish** | Sidebar reorder, Orphaned tab trim, Dark mode rework, Chart/Matrix filters | Moved Test Queries to last sidebar position. Removed Invalid Source/Target tiles from Orphaned tab (now 2-tile grid: Source Orphans, Target Orphans). Overhauled dark mode to GitHub-dark palette (#0d1117/#161b22). Added bar chart click-to-filter matrix, Mismatch Type dropdown, Active Filters badge, column hover highlighting. Expanded test suite from 7 to 11 Playwright tests. |
 | 2026-05-21 | **v3.2 Navigation & Readability Refresh** | Sidebar Test Queries, Light Default, KPI Title, Readability | Moved Test Queries from the Analytics tab set into a standalone sidebar destination. Added the Summary and KPIs heading above the eight KPI tiles. Restyled Analytics tabs with visible backgrounds and borders. Changed first-load theme behavior to light mode by default while preserving dark-mode toggle persistence. Lightened dark-mode surfaces, improved low-contrast labels, increased matrix/code typography, and updated SQL/DSN panels with theme-aware slate backgrounds. |
 | 2026-05-18 | **v3.1 Enterprise Diagnostics** | 15-Issue Expansion, Test Queries Tab, UI Polish | Overhauled data integrity checks to detect 15 industry-standard errors. Added Tab 3 for SQL Test Queries. Converted bar chart to horizontal. Fixed Matrix Total filtering. Replaced 'None' with clean empty cells. Transformed row keys into colored badge chips and added dynamic `row_keys` list parameter. Added detailed CSS dropdown tooltips to matrix headers. Added sticky footer for column totals. |
