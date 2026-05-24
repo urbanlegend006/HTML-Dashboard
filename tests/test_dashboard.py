@@ -148,6 +148,7 @@ def test_readability_style_contract(page: Page, dashboard_url: str):
 
     page.evaluate("localStorage.theme = 'dark'")
     page.reload()
+    page.wait_for_timeout(300)  # Wait for transition-colors duration-200 to complete
 
     body_dark_background = page.eval_on_selector("body", "el => getComputedStyle(el).backgroundColor")
     sql_dark = page.eval_on_selector("#source-sql", """el => {
@@ -257,3 +258,26 @@ def test_bar_chart_click_filters_matrix(page: Page, dashboard_url: str):
     # Active filters badge must be visible and contains the first label
     expect(page.locator("#activeFiltersBadge")).to_be_visible()
     expect(page.locator("#activeFiltersText")).to_contain_text(first_label)
+
+
+def test_matrix_columns_alignment(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    page.wait_for_timeout(1000)  # wait for page to render and stabilize
+    
+    ths = page.locator("#matrixTable > thead > tr > th").all()
+    first_row_cells = page.locator("#matrixTable > tbody > tr.matrix-row").first.locator("> td").all()
+    
+    # Ensure we have the same number of columns in header and body
+    assert len(ths) == 18
+    assert len(first_row_cells) == 18
+    
+    for idx in range(18):
+        th_box = ths[idx].bounding_box()
+        td_box = first_row_cells[idx].bounding_box()
+        
+        assert th_box is not None
+        assert td_box is not None
+        
+        # Check that the horizontal start coordinate (x) aligns within a 1.5px tolerance
+        assert abs(th_box["x"] - td_box["x"]) < 1.5, f"Column at index {idx} is misaligned! Header X: {th_box['x']:.2f}, Body Cell X: {td_box['x']:.2f}"
+

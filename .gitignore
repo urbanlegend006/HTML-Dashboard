@@ -1,0 +1,6 @@
+.venv
+__pycache__
+.pytest_cache
+.tmp.driveupload
+SFT CQAV3.0 QA - Informa vs D1_MIPRANS_OWNER.GC_SFP_HC_DS_ALL_DATA_20260410165257.db
+tests/__pycache__

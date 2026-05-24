@@ -349,18 +349,35 @@
                 box-shadow: 0 2px 8px rgba(var(--accent), 0.1);
             }
 
-            /* v4.0 Frozen Matrix Columns */
-            .matrix-sticky-total {
+            #matrixTable > thead > tr > th {
                 position: sticky;
-                right: 70px;
-                z-index: 10;
+                top: 0;
+                z-index: 20;
             }
-            .matrix-sticky-pct {
+            #matrixTable > thead > tr > th:not(.glass) {
+                background-color: #f1f5f9;
+            }
+            .dark #matrixTable > thead > tr > th:not(.glass) {
+                background-color: #1e293b;
+            }
+            th.matrix-sticky-total, td.matrix-sticky-total {
+                position: sticky;
+                right: 72px;
+            }
+            th.matrix-sticky-pct, td.matrix-sticky-pct {
                 position: sticky;
                 right: 0;
+            }
+            th.matrix-sticky-total, th.matrix-sticky-pct,
+            tfoot td.matrix-sticky-total, tfoot td.matrix-sticky-pct {
+                z-index: 30;
+            }
+            tbody td.matrix-sticky-total, tbody td.matrix-sticky-pct {
                 z-index: 10;
             }
-            .matrix-sticky-total, .matrix-sticky-pct {
+            th.matrix-sticky-total, th.matrix-sticky-pct,
+            tbody td.matrix-sticky-total, tbody td.matrix-sticky-pct,
+            tfoot td.matrix-sticky-total, tfoot td.matrix-sticky-pct {
                 background: inherit;
             }
 
@@ -923,7 +940,7 @@
                         </div>
                         <div class="overflow-x-auto relative scroll-smooth rounded-b-2xl" style="max-height: 800px; min-height: 280px;">
                             <table class="w-full text-left whitespace-nowrap text-xs" id="matrixTable">
-                                <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-black tracking-wide border-b border-slate-200 dark:border-slate-800 shadow-sm">
+                                <thead class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-black tracking-wide border-b border-slate-200 dark:border-slate-800 shadow-sm">
                                     <tr>
                                         <th class="px-4 py-3 cursor-pointer sticky left-0 z-30 glass shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] hover:text-indigo-600 transition-colors" onclick="sortTable(0, false)">Field ↕</th>
                                         <th class="px-2 py-3 text-center cursor-pointer border-l border-slate-200/50 dark:border-slate-700/50 hover:text-indigo-600 transition-colors info-tooltip-wrapper relative" onclick="sortTable(1, true)">
