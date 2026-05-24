@@ -3,7 +3,7 @@
   "command": {
     "test-gate": {
       "description": "Run the gated TOSCA implementation process: implement, test 2x, self-score >=95%, commit, push to current branch.",
-      "prompt": "Load the tosca-test-gate skill and follow its process for the feature described above."
+      "template": "Load the tosca-test-gate skill and follow its process for the feature described above."
     }
   }
 }
