@@ -1,0 +1,1 @@
+[('$.reportInfo.source.type', 'SQLite Source'), ('$.reportInfo.source.description', 'Data Source=C:\\Users\\SARKAA38\\AppData\\Local\\ToscaDataIntegrityExecutor\\Caching.sqlite'), ('$.reportInfo.target.type', 'SQLite Target'), ('$.reportInfo.target.description', 'Data Source=C:\\Users\\SARKAA38\\AppData\\Local\\ToscaDataIntegrityExecutor\\Caching.sqlite')]
