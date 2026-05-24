@@ -7,6 +7,13 @@ import html
 import hashlib
 import time
 
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    HAVE_OPENPYXL = True
+except ImportError:
+    HAVE_OPENPYXL = False
+
 __version__ = "4.0"
 
 
@@ -206,6 +213,147 @@ def format_val_html(val, placeholder=""):
         return ""
     return html.escape(str(val))
 
+def generate_excel_report(excel_path, full_report_data, matrix, col_names):
+    """Generate an XLSX report with all data issues grouped by error type in separate sheets.
+    
+    Args:
+        excel_path: Path to write the .xlsx file
+        full_report_data: dict of error_type -> list of {'row','column','source','target'}
+        matrix: dict of col_name -> {error_type: count}
+        col_names: sorted list of column names
+    """
+    if not HAVE_OPENPYXL:
+        print("Warning: openpyxl not installed. Excel report will not be generated.")
+        print("Install with: pip install openpyxl")
+        return
+
+    os.makedirs(os.path.dirname(excel_path), exist_ok=True)
+    wb = Workbook()
+
+    # ── Sheet 1: Summary (counts matrix) ──
+    ws = wb.active
+    ws.title = "Summary"
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill("solid", fgColor="4F46E5")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    cell_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="thin", color="D1D5DB"),
+    )
+
+    # Title row
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(ERROR_TYPES) + 2)
+    title_cell = ws.cell(row=1, column=1, value="Data Integrity Issues — Full Report Summary")
+    title_cell.font = Font(bold=True, size=14, color="1E293B")
+    title_cell.alignment = Alignment(horizontal="center")
+    ws.row_dimensions[1].height = 30
+
+    # Headers
+    ws.cell(row=2, column=1, value="Column Name").font = header_font
+    ws.cell(row=2, column=1).fill = header_fill
+    ws.cell(row=2, column=1).alignment = header_align
+    ws.cell(row=2, column=1).border = thin_border
+    for j, et in enumerate(ERROR_TYPES, 2):
+        cell = ws.cell(row=2, column=j, value=et)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+    total_cell = ws.cell(row=2, column=len(ERROR_TYPES) + 2, value="Total")
+    total_cell.font = header_font
+    total_cell.fill = header_fill
+    total_cell.alignment = header_align
+    total_cell.border = thin_border
+    ws.row_dimensions[2].height = 30
+
+    # Data rows
+    for i, col_name in enumerate(col_names, 3):
+        row_data = matrix.get(col_name, {})
+        ws.cell(row=i, column=1, value=col_name).font = Font(bold=True)
+        ws.cell(row=i, column=1).border = thin_border
+        row_total = 0
+        for j, et in enumerate(ERROR_TYPES, 2):
+            val = row_data.get(et, 0)
+            row_total += val
+            cell = ws.cell(row=i, column=j, value=val)
+            cell.alignment = cell_align
+            cell.border = thin_border
+            if val > 0:
+                cell.font = Font(bold=True, color="DC2626")
+        total_val_cell = ws.cell(row=i, column=len(ERROR_TYPES) + 2, value=row_total)
+        total_val_cell.alignment = cell_align
+        total_val_cell.border = thin_border
+        total_val_cell.font = Font(bold=True, color="4F46E5")
+
+    # Column widths
+    ws.column_dimensions['A'].width = 32
+    for j in range(2, len(ERROR_TYPES) + 3):
+        ws.column_dimensions[chr(64 + j) if j <= 26 else 'A' + chr(64 + j - 26)].width = 16
+
+    # ══ Per-error-type sheets ══
+    for error_type in ERROR_TYPES:
+        records = full_report_data.get(error_type, [])
+        sheet_name = error_type.replace('/', '-')[:31]  # Excel max sheet name length
+        ws = wb.create_sheet(title=sheet_name)
+
+        # Headers
+        cols = ["Row Key", "Column Name", "Source Value", "Target Value"]
+        for j, h in enumerate(cols, 1):
+            cell = ws.cell(row=1, column=j, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            cell.border = thin_border
+
+        # Data
+        for i, rec in enumerate(records, 2):
+            ws.cell(row=i, column=1, value=rec["row"]).border = thin_border
+            ws.cell(row=i, column=2, value=rec["column"]).border = thin_border
+            ws.cell(row=i, column=3, value=rec["source"]).border = thin_border
+            ws.cell(row=i, column=4, value=rec["target"]).border = thin_border
+
+        # Auto-filter
+        ws.auto_filter.ref = f"A1:D{len(records) + 1}"
+
+        ws.column_dimensions['A'].width = 50
+        ws.column_dimensions['B'].width = 32
+        ws.column_dimensions['C'].width = 30
+        ws.column_dimensions['D'].width = 30
+
+    # ══ All Issues sheet ══
+    ws_all = wb.create_sheet(title="All Issues")
+    cols = ["Row Key", "Column Name", "Error Type", "Source Value", "Target Value"]
+    for j, h in enumerate(cols, 1):
+        cell = ws_all.cell(row=1, column=j, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    row_num = 2
+    for error_type in ERROR_TYPES:
+        for rec in full_report_data.get(error_type, []):
+            ws_all.cell(row=row_num, column=1, value=rec["row"]).border = thin_border
+            ws_all.cell(row=row_num, column=2, value=rec["column"]).border = thin_border
+            ws_all.cell(row=row_num, column=3, value=error_type).border = thin_border
+            ws_all.cell(row=row_num, column=4, value=rec["source"]).border = thin_border
+            ws_all.cell(row=row_num, column=5, value=rec["target"]).border = thin_border
+            row_num += 1
+
+    ws_all.auto_filter.ref = f"A1:E{row_num - 1}"
+    ws_all.column_dimensions['A'].width = 50
+    ws_all.column_dimensions['B'].width = 32
+    ws_all.column_dimensions['C'].width = 28
+    ws_all.column_dimensions['D'].width = 30
+    ws_all.column_dimensions['E'].width = 30
+
+    wb.save(excel_path)
+    print(f"Full Excel Report Generated: {excel_path}")
+
+
 def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_report.html", row_keys=None):
     start_time = time.time()
     os.makedirs(os.path.dirname(output_html), exist_ok=True)
@@ -262,6 +410,7 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     # ==========================================
     matrix = {}
     samples = {}
+    full_report_data = {}  # error_type -> list of {'row': ..., 'column': ..., 'source': ..., 'target': ...}
     
     cursor.execute("SELECT * FROM Differences ORDER BY RowKey, System")
     all_diffs = cursor.fetchall()
@@ -359,6 +508,16 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                         "src": " | ".join([v if v is not None else "[NULL]" for v in s_vals]), 
                         "tgt": " | ".join([v if v is not None else "[NULL]" for v in t_vals])
                     })
+                # Full report: collect all sorting records
+                if mtype not in full_report_data:
+                    full_report_data[mtype] = []
+                for i in range(len(s_vals)):
+                    full_report_data[mtype].append({
+                        "row": rk,
+                        "column": col_name,
+                        "source": s_vals[i] if s_vals[i] is not None else "[NULL]",
+                        "target": t_vals[i] if t_vals[i] is not None else "[NULL]"
+                    })
             else:
                 # Standard Pairwise comparison
                 for i in range(max(len(s_vals), len(t_vals))):
@@ -373,6 +532,15 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             matrix[col_name][mtype] += 1
                             if len(samples[col_name][mtype]) < 5:
                                 samples[col_name][mtype].append({"row": rk, "src": sv, "tgt": tv})
+                            # Full report: collect all records
+                            if mtype not in full_report_data:
+                                full_report_data[mtype] = []
+                            full_report_data[mtype].append({
+                                "row": rk,
+                                "column": col_name,
+                                "source": sv if sv is not None else "[NULL]",
+                                "target": tv if tv is not None else "[NULL]"
+                            })
 
     # ==========================================
     # 3b. UNMATCHED & INVALID DATA EXTRACTION
@@ -621,6 +789,9 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                 </div>
             </td>
         </tr>"""
+
+    excel_path = output_html.rsplit('.', 1)[0] + "_full_report.xlsx"
+    col_names = sorted(matrix.keys(), key=lambda x: (x != "Summary Total", x))
 
     html_content = f"""
     <!DOCTYPE html>
@@ -1217,6 +1388,17 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                         <p class="text-[10px] text-slate-500 font-medium">View Only</p>
                     </div>
                 </div>
+            </div>
+            <!-- Excel Report Button -->
+            <div class="px-3 pb-4 border-t border-slate-100 dark:border-slate-800/50 pt-3">
+                <a href="{os.path.basename(excel_path)}" download id="excel-report-btn"
+                   class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all"
+                   title="Download Full Excel Report">
+                    <svg class="w-5 h-5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span class="sidebar-label">Excel Report</span>
+                </a>
             </div>
         </aside>
 
@@ -2800,6 +2982,9 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
         f.write(html_content)
     conn.close()
     print(f"Final Consolidated Dashboard Generated: {output_html}")
+
+    # Generate Excel Report
+    generate_excel_report(excel_path, full_report_data, matrix, col_names)
 
 if __name__ == "__main__":
     db_name = "tosca_report.db"
