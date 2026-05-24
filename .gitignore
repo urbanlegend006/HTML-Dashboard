@@ -6,6 +6,5 @@ __pycache__/
 *.db
 scratch/
 output/*
-!output/tosca_enterprise_report.html
 tests/__pycache__/
 metadata_info.txt
