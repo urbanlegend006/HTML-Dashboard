@@ -328,6 +328,79 @@ def test_crosshair_clears_on_mouseleave(page: Page, dashboard_url: str):
     assert not header_gone, "Column header class should be removed after mouseleave"
 
 
+def test_excel_report_button_exists(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    btn = page.locator("#excel-report-btn")
+    expect(btn).to_be_visible()
+    expect(btn).to_contain_text("Excel Report")
+    expect(btn).to_have_attribute("title", "Download Full Excel Report")
+    expect(page.locator("nav #excel-report-btn")).to_be_visible()
+
+
+def test_excel_report_button_position(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    order = page.evaluate("""() => {
+        const links = document.querySelectorAll('nav a');
+        let queriesIdx = -1, btnIdx = -1;
+        links.forEach((a, i) => {
+            if (a.id === 'nav-queries') queriesIdx = i;
+            if (a.id === 'excel-report-btn') btnIdx = i;
+        });
+        return { queriesIdx, btnIdx };
+    }""")
+    assert order['btnIdx'] > order['queriesIdx'], "Excel Report must appear after Test Queries in nav"
+    expect(page.locator("nav .sidebar-section-label:has-text('Downloads')")).to_be_visible()
+
+
+def test_automation_team_label(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    expect(page.locator("text=Automation Team")).to_be_visible()
+    expect(page.locator("text=System Admin")).to_be_hidden()
+
+
+def test_excel_report_content(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    with page.expect_download() as download_info:
+        page.locator("#excel-report-btn").click()
+    download = download_info.value
+    assert download.suggested_filename == "tosca_integrity_report_full.xlsx"
+
+    import tempfile, os
+    import openpyxl
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    try:
+        download.save_as(tmp.name)
+        wb = openpyxl.load_workbook(tmp.name)
+        assert len(wb.sheetnames) == 17, f"Expected 17 sheets, got {len(wb.sheetnames)}"
+        assert wb.sheetnames[0] == "Summary"
+        assert wb.sheetnames[-1] == "All Issues"
+        for et in ["Source Value is NULL", "Target Value is NULL",
+                   "Null Equivalent Mismatch", "Duplicate Value Mismatch",
+                   "Sorting Issue", "Whitespace Mismatch",
+                   "Case Sensitivity Mismatch", "Type Coercion / Formatting",
+                   "Boolean Format Mismatch", "Encoding / Special Char Mismatch",
+                   "Precision / Rounding", "Data Truncation",
+                   "Date/Timestamp Mismatch", "Numeric Data Mismatch",
+                   "String Data Mismatch"]:
+            safe = et.replace('/', '-')[:31]
+            assert safe in wb.sheetnames, f"Missing sheet: {et}"
+        ws = wb["Summary"]
+        assert ws.max_column == 17, f"Summary expected 17 cols, got {ws.max_column}"
+        assert ws.cell(1, 1).value == "Column Name", f"Expected 'Column Name' at A1, got {ws.cell(1, 1).value}"
+        assert ws.cell(1, 17).value == "Total"
+        ws_all = wb["All Issues"]
+        assert ws_all.max_column == 5
+        assert ws_all.max_row > 1000, f"All Issues expected >1000 rows, got {ws_all.max_row}"
+        assert ws_all.cell(1, 3).value == "Error Type"
+        ws_tn = wb["Target Value is NULL"]
+        assert ws_tn.max_row > 100, f"Target Value is NULL expected >100 rows, got {ws_tn.max_row}"
+        assert ws_tn.cell(1, 1).value == "Row Key"
+        wb.close()
+    finally:
+        os.unlink(tmp.name)
+
+
 def test_mismatch_type_dropdown_filter(page: Page, dashboard_url: str):
     page.goto(dashboard_url)
     
