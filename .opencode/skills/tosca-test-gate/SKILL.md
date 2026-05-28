@@ -1,6 +1,6 @@
 ---
 name: tosca-test-gate
-description: "Use for the TOSCA DI Report Dashboard project when implementing features. Follow this gated process: implement with tests, run tests 2x, self-score >=95%, loop until passing, commit with comprehensive message, push to current branch."
+description: "Use for the TOSCA DI Report Dashboard project when implementing features. Follow this gated process: implement with tests, run tests 2x, self-score >=95%, loop until passing, update docs, commit all together, push once."
 ---
 
 # TOSCA Feature Implementation Process
@@ -54,25 +54,13 @@ Run the same command again. Results must be consistent (no flaky tests).
 
 If < 95%: diagnose -> fix -> regenerate -> re-test -> re-score. Loop until passing.
 
-## Gate 5 — Commit & Push
+## Gate 5 — Update Doc, Commit & Push
 
-```bash
-# Stage only intended files; never stage secrets or generated artifacts
-git add <files>
+**One commit. One push. All files together.**
 
-# Commit with comprehensive message: one-liner summary, blank line, then
-# detailed per-file breakdown explaining what and why, not just what.
-git commit -m "type: concise summary
+### Step 1: Update Feature Reference Doc
 
-Body with detailed per-file breakdown of changes and rationale."
-
-# Push to current branch (never main)
-git push
-```
-
-## Gate 6 — Update Feature Reference Doc
-
-After push, update `tosca_unified_dashboard_features-v2.md`:
+Update `tosca_unified_dashboard_features-v2.md`:
 
 1. Add new feature descriptions under the relevant section (e.g., section 3 for
    sidebar changes, section 7 for matrix changes, section 8 for exports, etc.)
@@ -81,11 +69,28 @@ After push, update `tosca_unified_dashboard_features-v2.md`:
 4. Add a changelog entry with date, version, short name, and details
 5. Remove any duplicate content if present
 
+### Step 2: Stage All Changed Files
+
 ```bash
-# Stage and commit the doc update separately on main
-git add tosca_unified_dashboard_features-v2.md
-git commit -m "docs: update feature reference for [feature name]"
+git add tosca_di_report_dashboard.py tests/test_dashboard.py tosca_unified_dashboard_features-v2.md
+```
+
+### Step 3: Commit With Comprehensive Message
+
+```bash
+git commit -m "type: concise summary
+
+Body with detailed per-file breakdown of changes and rationale."
+```
+
+### Step 4: Push to Current Branch (Never Main)
+
+```bash
 git push
 ```
 
 To check current branch: `git branch --show-current`
+
+Base directory for this skill: file:///S:/AI%20Learning%20Projects/TOSCA%20DI%20Report%20Dashboard/.opencode/skills/tosca-test-gate
+Relative paths in this skill (e.g., scripts/, reference/) are relative to this base directory.
+Note: file list is sampled.
