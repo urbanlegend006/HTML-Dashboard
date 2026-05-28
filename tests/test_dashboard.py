@@ -550,3 +550,202 @@ def test_matrix_scrolling(page: Page, dashboard_url: str):
     src_null_z = page.evaluate('getComputedStyle(document.querySelector("#matrixTable > thead > tr > th:nth-child(2)")).zIndex')
     
     assert int(field_z) > int(src_null_z), f"FIELD z-index ({field_z}) is not greater than SRC NULL z-index ({src_null_z})"
+
+
+# ============================================================
+# NEW TESTS: UI/UX Accessibility & Quality Fixes (v4.1)
+# ============================================================
+
+def test_viewport_meta_tag(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    viewport_meta = page.locator('meta[name="viewport"]')
+    assert viewport_meta.count() == 1, "Expected exactly one viewport meta tag"
+    expect(viewport_meta).to_have_attribute("content", "width=device-width, initial-scale=1")
+
+
+def test_aria_theme_toggle(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    theme_toggle = page.locator("#themeToggle")
+    expect(theme_toggle).to_have_attribute("aria-label", "Toggle dark mode")
+    expect(theme_toggle).to_have_attribute("aria-pressed", "false")
+    # Check SVGs have aria-hidden
+    svg_count = theme_toggle.locator("svg").count()
+    assert svg_count == 2, f"Expected 2 SVGs in theme toggle, got {svg_count}"
+    for i in range(svg_count):
+        expect(theme_toggle.locator("svg").nth(i)).to_have_attribute("aria-hidden", "true")
+
+
+def test_aria_scroll_to_top(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    scroll_btn = page.locator("#scrollTopBtn")
+    expect(scroll_btn).to_have_attribute("aria-label", "Scroll to top")
+
+
+def test_aria_tabs(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    # Tab container has role="tablist"
+    tablist_role = page.evaluate("""() => {
+        const el = document.querySelector('[role="tablist"]');
+        return el ? el.getAttribute('role') : null;
+    }""")
+    assert tablist_role == "tablist", f"Expected role='tablist', got '{tablist_role}'"
+    # Tab buttons have role="tab"
+    tab_buttons = page.locator('button[role="tab"]').all()
+    assert len(tab_buttons) == 3, f"Expected 3 tab buttons with role='tab', got {len(tab_buttons)}"
+    for i, btn in enumerate(tab_buttons):
+        aria_selected = btn.get_attribute("aria-selected")
+        assert aria_selected is not None, f"Tab button {i} missing aria-selected"
+        aria_controls = btn.get_attribute("aria-controls")
+        assert aria_controls is not None, f"Tab button {i} missing aria-controls"
+    # Tab panels have role="tabpanel"
+    tabpanels = page.locator('[role="tabpanel"]').all()
+    assert len(tabpanels) >= 2, f"Expected at least 2 tabpanels, got {len(tabpanels)}"
+
+
+def test_aria_canvas_elements(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    for canvas_id in ["healthChart", "barChart"]:
+        canvas = page.locator(f"#{canvas_id}")
+        expect(canvas).to_have_attribute("role", "img")
+        aria_label = canvas.get_attribute("aria-label")
+        assert aria_label is not None and len(aria_label) > 5, f"Canvas {canvas_id} missing descriptive aria-label"
+
+
+def test_aria_matrix_accordion_rows(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    rows = page.locator(".matrix-row").all()
+    assert len(rows) > 0, "No matrix rows found"
+    for i, row in enumerate(rows[:3]):  # Check first 3
+        expect(row).to_have_attribute("tabindex", "0")
+        expect(row).to_have_attribute("role", "button")
+        expect(row).to_have_attribute("aria-expanded", "false")
+
+
+def test_keyboard_accordion(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    first_row = page.locator(".matrix-row[tabindex='0']").first
+    first_row.focus()
+    # Get accordion ID
+    acc_id = first_row.get_attribute("onclick").split("'")[1]
+    # Press Enter to expand
+    first_row.press("Enter")
+    page.wait_for_timeout(300)
+    acc_panel = page.locator(f"#{acc_id}")
+    expect(acc_panel).to_be_visible()
+    # Press Enter again to collapse
+    first_row.press("Enter")
+    page.wait_for_timeout(300)
+    expect(acc_panel).to_be_hidden()
+
+
+def test_health_chart_tooltip_theme_aware(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    page.evaluate("localStorage.removeItem('theme')")
+    page.reload()
+    page.wait_for_timeout(300)
+    # Light mode tooltip should be white
+    light_bg = page.evaluate("healthChart.options.plugins.tooltip.backgroundColor")
+    assert light_bg == "#ffffff", f"Light mode tooltip should be #ffffff, got '{light_bg}'"
+    # Switch to dark mode
+    page.evaluate("localStorage.theme = 'dark'")
+    page.reload()
+    page.wait_for_timeout(300)
+    dark_bg = page.evaluate("healthChart.options.plugins.tooltip.backgroundColor")
+    assert dark_bg == "#1e293b", f"Dark mode tooltip should be #1e293b, got '{dark_bg}'"
+
+
+def test_sidebar_no_flash_on_load(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    page.evaluate("localStorage.sidebarCollapsed = 'true'")
+    page.reload()
+    page.wait_for_timeout(500)
+    sidebar_class = page.locator("#sidebar").get_attribute("class") or ""
+    assert "collapsed" in sidebar_class, f"Sidebar should be collapsed, got class: '{sidebar_class}'"
+    sidebar_width = page.evaluate("getComputedStyle(document.getElementById('sidebar')).width")
+    assert "72" in sidebar_width or "4.5rem" in sidebar_width, f"Sidebar width should be ~72px, got '{sidebar_width}'"
+
+
+def test_print_styles_valid_selector(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    # Check that no invalid .dark body selector exists in print styles
+    invalid_selector = page.evaluate("""() => {
+        const sheets = document.styleSheets;
+        for (let i = 0; i < sheets.length; i++) {
+            try {
+                const rules = sheets[i].cssRules;
+                for (let j = 0; j < rules.length; j++) {
+                    if (rules[j] instanceof CSSMediaRule && rules[j].media.mediaText === 'print') {
+                        const printRules = rules[j].cssRules;
+                        for (let k = 0; k < printRules.length; k++) {
+                            if (printRules[k].selectorText === '.dark body') {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+        return false;
+    }""")
+    assert not invalid_selector, "Found invalid '.dark body' selector in print styles"
+
+
+def test_sidebar_label_font_size(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    labels = page.locator(".sidebar-section-label").all()
+    for i, label in enumerate(labels):
+        font_size = label.evaluate("el => parseFloat(getComputedStyle(el).fontSize)")
+        assert font_size >= 10, f"Sidebar label {i} font size should be >= 10px, got {font_size}px"
+
+
+def test_glass_class_no_duplicate(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    # Count only actual .glass class definitions (not references in selectors)
+    glass_defs = page.evaluate("""() => {
+        let count = 0;
+        const sheets = document.styleSheets;
+        for (let i = 0; i < sheets.length; i++) {
+            try {
+                const rules = sheets[i].cssRules;
+                for (let j = 0; j < rules.length; j++) {
+                    const sel = rules[j].selectorText || '';
+                    // Count only .glass or .dark .glass definitions (not .glass-card, :not(.glass), etc.)
+                    if (sel === '.glass' || sel === '.dark .glass') {
+                        count++;
+                    }
+                }
+            } catch (e) {}
+        }
+        return count;
+    }""")
+    assert glass_defs <= 2, f"Expected at most 2 .glass definitions, found {glass_defs}"
+
+
+def test_excel_export_error_handling(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    # Mock SheetJS to throw an error
+    page.evaluate("window.XLSX = { write: function() { throw new Error('Mock error'); }, utils: { book_new: function() { return {}; }, aoa_to_sheet: function() { return {}; }, book_append_sheet: function() {} } }")
+    # Try to download - should not crash, should show error toast
+    page.locator("#excel-report-btn").click()
+    page.wait_for_timeout(1000)
+    # Check that toast appears (either success or error)
+    toast = page.locator("#toast-notification")
+    expect(toast).to_be_visible()
+
+
+def test_scroll_smooth_removed(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    has_scroll_smooth = page.evaluate("document.getElementById('scroll-container').classList.contains('scroll-smooth')")
+    assert not has_scroll_smooth, "scroll-smooth class should be removed"
+
+
+def test_autoscroll_timeout(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+    page.locator("#nav-charts").click()
+    page.wait_for_timeout(1500)
+    charts_in_view = page.evaluate("""() => {
+        const charts = document.getElementById('charts');
+        const rect = charts.getBoundingClientRect();
+        return rect.top >= -50 && rect.top < window.innerHeight;
+    }""")
+    assert charts_in_view, "Charts section should be in view after clicking nav link"

@@ -814,7 +814,7 @@ def generate_html(ctx):
 
         # Matrix Row
         table_body += f"""
-        <tr class="{row_bg} border-b border-slate-100 dark:border-slate-800/80 transition-all duration-200 cursor-pointer {row_type} matrix-row group" onclick="toggleAccordion('{safe_id}')">
+        <tr tabindex="0" role="button" aria-expanded="false" class="{row_bg} border-b border-slate-100 dark:border-slate-800/80 transition-all duration-200 cursor-pointer {row_type} matrix-row group" onclick="toggleAccordion('{safe_id}')" onkeydown="if(event.key==='Enter'||event.key===' '){{event.preventDefault();this.click()}}">
             <td class="px-4 py-3 font-bold text-slate-800 dark:text-slate-200 text-xs col-name flex items-center gap-2 sticky left-0 z-10 glass shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                 <div class="w-5 h-5 shrink-0 rounded flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-400 transition-transform group-hover:scale-110">
                     <span class="text-[11px] transition-transform duration-300">▶</span>
@@ -855,6 +855,7 @@ def generate_html(ctx):
     <html lang="en">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>TOSCA Enterprise Integrity</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -927,17 +928,6 @@ def generate_html(ctx):
                 transition: all 0.3s;
             }}
             
-            .glass {{
-                background: rgba(var(--surface), 0.7);
-                backdrop-filter: blur(12px);
-                border: 1px solid rgba(var(--surface), 0.5);
-            }}
-            .dark .glass {{
-                background: rgba(var(--surface-dark), 0.75);
-                backdrop-filter: blur(12px);
-                border: 1px solid rgba(48, 54, 61, 0.8);
-            }}
-
             .nav-active {{
                 background: rgba(var(--accent), 0.1) !important;
                 color: rgb(var(--accent)) !important;
@@ -1329,7 +1319,7 @@ def generate_html(ctx):
 
             /* v4.0 Section Divider */
             .sidebar-section-label {{
-                font-size: 9px;
+                font-size: 10px;
                 font-weight: 800;
                 text-transform: uppercase;
                 letter-spacing: 0.1em;
@@ -1383,7 +1373,7 @@ def generate_html(ctx):
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                 }}
-                .dark body {{ background: white !important; color: #0f172a !important; }}
+                html.dark body {{ background: white !important; color: #0f172a !important; }}
             }}
         </style>
 
@@ -1488,9 +1478,9 @@ def generate_html(ctx):
                             <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Execution Date</span>
                             <p class="text-xs font-black text-indigo-600 dark:text-indigo-400">{report_date}</p>
                         </div>
-                        <button id="themeToggle" class="p-2.5 bg-white dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 group">
-                            <svg class="w-5 h-5 hidden dark:block group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                            <svg class="w-5 h-5 block dark:hidden group-hover:-rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                        <button id="themeToggle" aria-label="Toggle dark mode" aria-pressed="false" class="p-2.5 bg-white dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm border border-slate-200 dark:border-slate-700 group">
+                            <svg aria-hidden="true" class="w-5 h-5 hidden dark:block group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                            <svg aria-hidden="true" class="w-5 h-5 block dark:hidden group-hover:-rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
                         </button>
                     </div>
                 </div>
@@ -1507,7 +1497,7 @@ def generate_html(ctx):
             </header>
 
             <!-- Scrollable Content Area -->
-            <div id="scroll-container" class="flex-1 overflow-y-auto p-8 scroll-smooth relative snap-container">
+            <div id="scroll-container" class="flex-1 overflow-y-auto p-8 relative snap-container">
                 <div class="max-w-[1400px] mx-auto space-y-10 pb-12">
                     
                     <!-- Summary and KPI Cards -->
@@ -1622,20 +1612,20 @@ def generate_html(ctx):
                     <!-- Analytics Section with Tabs (v3.0) -->
                     <div id="charts" class="bg-white dark:bg-[#161b22] rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 dark:hover:border-indigo-400/50 shadow-sm transition-all duration-300 overflow-hidden snap-section">
                         <!-- Tab Header -->
-                        <div class="px-8 pt-6 pb-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/50">
-                            <button onclick="switchTab('tab-overview')" class="tab-btn active px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-overview">
+                        <div role="tablist" class="px-8 pt-6 pb-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/50">
+                            <button role="tab" aria-selected="true" aria-controls="tab-overview" onclick="switchTab('tab-overview')" class="tab-btn active px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-overview">
                                 <span class="flex items-center gap-2">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                     Overview Charts
                                 </span>
                             </button>
-                            <button onclick="switchTab('tab-distribution')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-distribution">
+                            <button role="tab" aria-selected="false" aria-controls="tab-distribution" onclick="switchTab('tab-distribution')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-distribution">
                                 <span class="flex items-center gap-2">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
                                     Error Distribution
                                 </span>
                             </button>
-                            <button onclick="switchTab('tab-orphans')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-orphans">
+                            <button role="tab" aria-selected="false" aria-controls="tab-orphans" onclick="switchTab('tab-orphans')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-orphans">
                                 <span class="flex items-center gap-2">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                     Orphaned Records
@@ -1644,7 +1634,7 @@ def generate_html(ctx):
                         </div>
 
                         <!-- Tab 1: Overview Charts -->
-                        <div id="tab-overview" class="tab-panel active p-8">
+                        <div id="tab-overview" role="tabpanel" aria-labelledby="tab-overview" class="tab-panel active p-8">
                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <!-- Health Doughnut Widget -->
                                 <div class="bg-slate-50/50 dark:bg-slate-800/35 rounded-2xl p-6 flex flex-col items-center">
@@ -1653,7 +1643,7 @@ def generate_html(ctx):
                                         Integrity Health Score
                                     </h3>
                                     <div class="relative w-64 h-64 mb-6">
-                                        <canvas id="healthChart"></canvas>
+                                        <canvas id="healthChart" role="img" aria-label="Doughnut chart showing data health score"></canvas>
                                         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                             <span class="text-4xl font-black text-slate-800 dark:text-white">{match_pct}%</span>
                                             <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Matched</span>
@@ -1687,13 +1677,13 @@ def generate_html(ctx):
                                         <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                         Top 5 Affected Columns
                                     </h3>
-                                    <div class="h-72"><canvas id="barChart"></canvas></div>
+                                    <div class="h-72"><canvas id="barChart" role="img" aria-label="Bar chart showing top 5 affected columns"></canvas></div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Tab 2: Error Type Distribution -->
-                        <div id="tab-distribution" class="tab-panel p-8">
+                        <div id="tab-distribution" role="tabpanel" aria-labelledby="tab-distribution" class="tab-panel p-8">
                             <div class="flex items-center justify-between mb-6">
                                 <h3 class="text-sm font-black tracking-tight dark:text-white flex items-center gap-2">
                                     <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
@@ -2091,7 +2081,7 @@ def generate_html(ctx):
             </div>
 
             <!-- Scroll-to-Top Button -->
-            <button id="scrollTopBtn" onclick="document.getElementById('scroll-container').scrollTo({{top:0,behavior:'smooth'}})" class="fixed bottom-8 right-8 w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-500/30 flex items-center justify-center transition-all duration-300 translate-y-24 opacity-0 z-50 group">
+            <button id="scrollTopBtn" aria-label="Scroll to top" onclick="document.getElementById('scroll-container').scrollTo({{top:0,behavior:'smooth'}})" class="fixed bottom-8 right-8 w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-500/30 flex items-center justify-center transition-all duration-300 translate-y-24 opacity-0 z-50 group">
                 <svg class="w-6 h-6 group-hover:-translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
             </button>
         </main>
@@ -2103,20 +2093,33 @@ def generate_html(ctx):
             
             if (localStorage.theme === 'dark') {{
                 htmlClass.add('dark');
-            }} else {{
+            }} else if (localStorage.theme === 'light') {{
                 htmlClass.remove('dark');
+            }} else {{
+                // No preference stored - use system preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {{
+                    htmlClass.add('dark');
+                }} else {{
+                    htmlClass.remove('dark');
+                }}
             }}
 
             themeToggle.addEventListener('click', () => {{
                 if (htmlClass.contains('dark')) {{
                     htmlClass.remove('dark');
                     localStorage.theme = 'light';
+                    themeToggle.setAttribute('aria-pressed', 'false');
                 }} else {{
                     htmlClass.add('dark');
                     localStorage.theme = 'dark';
+                    themeToggle.setAttribute('aria-pressed', 'true');
                 }}
                 updateChartColors();
             }});
+            // Set initial aria-pressed based on current state
+            if (htmlClass.contains('dark')) {{
+                themeToggle.setAttribute('aria-pressed', 'true');
+            }}
 
             // Chart Configurations
             const getChartTextColor = () => htmlClass.contains('dark') ? '#94a3b8' : '#64748b';
@@ -3020,6 +3023,7 @@ def generate_html(ctx):
             }}
 
             function downloadExcelReport() {{
+                try {{
                 var data = window.FULL_REPORT_DATA;
                 var errorTypes = window.ERROR_TYPES;
                 var matrixData = window.MATRIX_DATA;
@@ -3077,6 +3081,10 @@ def generate_html(ctx):
 
                 XLSX.writeFile(wb, 'tosca_integrity_report_full.xlsx');
                 showToast('Full Excel report downloaded successfully');
+                }} catch (e) {{
+                    console.error('Excel export error:', e);
+                    showToast('Failed to generate Excel report. Please try again.', 'error');
+                }}
             }}
 
             function copyToClipboard() {{
