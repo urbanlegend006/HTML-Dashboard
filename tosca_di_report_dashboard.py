@@ -206,141 +206,109 @@ def format_val_html(val, placeholder=""):
         return ""
     return html.escape(str(val))
 
-def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_report.html", row_keys=None):
-    start_time = time.time()
-    os.makedirs(os.path.dirname(output_html), exist_ok=True)
-    if not os.path.exists(db_path):
-        print(f"Error: {db_path} not found.")
-        return
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+def get_mismatch_type(s_val, t_val):
+    s_str = str(s_val) if s_val is not None else ""
+    t_str = str(t_val) if t_val is not None else ""
+    s_lower = s_str.lower()
+    t_lower = t_str.lower()
 
-    # ==========================================
-    # 1. RETRIEVE GLOBAL METRICS
-    # ==========================================
-    def get_meta(key):
-        cursor.execute("SELECT Value FROM Metadata WHERE Key = ?", (key,))
-        res = cursor.fetchone()
-        return res[0] if res else "0"
+    s_is_null = s_val is None or s_lower in ['none', 'null', '']
+    t_is_null = t_val is None or t_lower in ['none', 'null', '']
 
-    report_date = get_meta('$.reportInfo.createdAt')
-    total_rows = int(get_meta('$.reportInfo.comparisonOverview.sourceRowsProcessed'))
-    matched_count = int(get_meta('$.reportInfo.comparisonOverview.matchedRowsCount'))
-    diff_row_count = int(get_meta('$.reportInfo.comparisonOverview.rowsWithDifferences'))
-    pass_rate = round((matched_count / total_rows) * 100, 2) if total_rows > 0 else 0
+    if s_is_null and not t_is_null:
+        if t_lower in ['n/a', 'na', 'unknown', '0', '-1']:
+            return "Null Equivalent Mismatch"
+        return "Source Value is NULL"
+    if t_is_null and not s_is_null:
+        if s_lower in ['n/a', 'na', 'unknown', '0', '-1']:
+            return "Null Equivalent Mismatch"
+        return "Target Value is NULL"
+    if s_is_null and t_is_null:
+        return None
 
-    source_type = get_meta('$.reportInfo.source.type')
-    source_desc = get_meta('$.reportInfo.source.description')
-    source_sql = get_meta('$.reportInfo.source.sql')
-    target_type = get_meta('$.reportInfo.target.type')
-    target_desc = get_meta('$.reportInfo.target.description')
-    target_sql = get_meta('$.reportInfo.target.sql')
+    if s_str.strip() == t_str.strip():
+        return "Whitespace Mismatch"
+    if s_lower == t_lower:
+        return "Case Sensitivity Mismatch"
 
-    # ==========================================
-    # 2. COLUMN MAPPING
-    # ==========================================
-    cursor.execute("SELECT ColumnId, ColumnName FROM ColumnNames WHERE TableName='Differences'")
-    col_map = {str(row[0]): row[1] for row in cursor.fetchall()}
+    s_clean = re.sub(r'[^\x00-\x7F]+', '', s_str)
+    t_clean = re.sub(r'[^\x00-\x7F]+', '', t_str)
+    if s_clean == t_clean and s_clean != "":
+        return "Encoding / Special Char Mismatch"
 
-    # ==========================================
-    # 2b. ROW-KEY COLUMNS
-    # ==========================================
-    if row_keys is None:
-        cursor.execute("SELECT RowKey FROM Differences WHERE RowKey IS NOT NULL LIMIT 1")
-        sample_row = cursor.fetchone()
-        if sample_row and sample_row[0]:
-            num_cols = str(sample_row[0]).count('|') + 1
-            row_key_columns = [f"col{i+1}" for i in range(num_cols)]
-        else:
-            row_key_columns = []
-    else:
-        row_key_columns = row_keys
+    s_is_num = False
+    t_is_num = False
+    s_float = None
+    t_float = None
+    try:
+        s_float = float(s_str.replace(',', ''))
+        s_is_num = True
+    except:
+        pass
+    try:
+        t_float = float(t_str.replace(',', ''))
+        t_is_num = True
+    except:
+        pass
 
-    # ==========================================
-    # 3. ADVANCED ANALYSIS (LOGIC + SORTING)
-    # ==========================================
+    if s_is_num and t_is_num:
+        if s_float == t_float:
+            return "Type Coercion / Formatting"
+        s_decimals = len(s_str.split('.')[-1]) if '.' in s_str else 0
+        t_decimals = len(t_str.split('.')[-1]) if '.' in t_str else 0
+        if s_decimals != t_decimals:
+            min_dec = min(s_decimals, t_decimals)
+            if round(s_float, min_dec) == round(t_float, min_dec):
+                return "Precision / Rounding"
+
+    bool_vals = ['true', 'false', 'y', 'n', 'yes', 'no', '1', '0']
+    if s_lower in bool_vals and t_lower in bool_vals:
+        return "Boolean Format Mismatch"
+
+    if len(s_str) > 0 and len(t_str) > 0:
+        if (s_str.startswith(t_str) or t_str.startswith(s_str)) and abs(len(s_str) - len(t_str)) > 0:
+            return "Data Truncation"
+
+    if is_date_like(s_str) and is_date_like(t_str):
+        return "Date/Timestamp Mismatch"
+    if s_is_num and t_is_num:
+        return "Numeric Data Mismatch"
+    return "String Data Mismatch"
+
+
+def build_error_matrix(cursor, col_map):
     matrix = {}
     samples = {}
-    full_report_data = {}  # error_type -> list of {'row': ..., 'column': ..., 'source': ..., 'target': ...}
-    
+    full_report_data = {}
+
     cursor.execute("SELECT * FROM Differences ORDER BY RowKey, System")
     all_diffs = cursor.fetchall()
     col_desc = [d[0] for d in cursor.description]
-    
-    # Group by RowKey to compare sets of records
+
     row_groups = {}
     for r in all_diffs:
         rk = r[col_desc.index('RowKey')]
-        if rk not in row_groups: row_groups[rk] = {'0': [], '1': []}
+        if rk not in row_groups:
+            row_groups[rk] = {'0': [], '1': []}
         row_groups[rk][str(r[col_desc.index('System')])].append(r)
-
-    def get_mismatch_type(s_val, t_val):
-        s_str = str(s_val) if s_val is not None else ""
-        t_str = str(t_val) if t_val is not None else ""
-        s_lower = s_str.lower()
-        t_lower = t_str.lower()
-        
-        s_is_null = s_val is None or s_lower in ['none', 'null', '']
-        t_is_null = t_val is None or t_lower in ['none', 'null', '']
-        
-        if s_is_null and not t_is_null:
-            if t_lower in ['n/a', 'na', 'unknown', '0', '-1']: return "Null Equivalent Mismatch"
-            return "Source Value is NULL"
-        if t_is_null and not s_is_null:
-            if s_lower in ['n/a', 'na', 'unknown', '0', '-1']: return "Null Equivalent Mismatch"
-            return "Target Value is NULL"
-        if s_is_null and t_is_null:
-            return None
-
-        if s_str.strip() == t_str.strip(): return "Whitespace Mismatch"
-        if s_lower == t_lower: return "Case Sensitivity Mismatch"
-            
-        s_clean = re.sub(r'[^\x00-\x7F]+', '', s_str)
-        t_clean = re.sub(r'[^\x00-\x7F]+', '', t_str)
-        if s_clean == t_clean and s_clean != "": return "Encoding / Special Char Mismatch"
-
-        s_is_num = False; t_is_num = False; s_float = None; t_float = None
-        try: s_float = float(s_str.replace(',', '')); s_is_num = True
-        except: pass
-        try: t_float = float(t_str.replace(',', '')); t_is_num = True
-        except: pass
-
-        if s_is_num and t_is_num:
-            if s_float == t_float: return "Type Coercion / Formatting"
-            s_decimals = len(s_str.split('.')[-1]) if '.' in s_str else 0
-            t_decimals = len(t_str.split('.')[-1]) if '.' in t_str else 0
-            if s_decimals != t_decimals:
-                min_dec = min(s_decimals, t_decimals)
-                if round(s_float, min_dec) == round(t_float, min_dec): return "Precision / Rounding"
-                    
-        bool_vals = ['true', 'false', 'y', 'n', 'yes', 'no', '1', '0']
-        if s_lower in bool_vals and t_lower in bool_vals: return "Boolean Format Mismatch"
-            
-        if len(s_str) > 0 and len(t_str) > 0:
-            if (s_str.startswith(t_str) or t_str.startswith(s_str)) and abs(len(s_str) - len(t_str)) > 0:
-                return "Data Truncation"
-
-        if is_date_like(s_str) and is_date_like(t_str): return "Date/Timestamp Mismatch"
-        if s_is_num and t_is_num: return "Numeric Data Mismatch"
-        return "String Data Mismatch"
 
     for rk, systems in row_groups.items():
         src_rows = systems['0']
         tgt_rows = systems['1']
-        
-        # Get all affected columns for this group
+
         affected_indices = set()
         for r in src_rows + tgt_rows:
             idx_str = r[col_desc.index('Affected Column Indexes')]
-            if idx_str: affected_indices.update(str(idx_str).split(','))
+            if idx_str:
+                affected_indices.update(str(idx_str).split(','))
 
         for idx in affected_indices:
             col_name = col_map.get(idx, f"Col_{idx}")
             if col_name not in matrix:
                 matrix[col_name] = {k: 0 for k in ERROR_TYPES}
                 samples[col_name] = {k: [] for k in matrix[col_name].keys()}
-            
+
             try:
                 v_idx = col_desc.index(idx)
             except ValueError:
@@ -349,18 +317,15 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
             s_vals = [str(r[v_idx]) if r[v_idx] is not None else None for r in src_rows]
             t_vals = [str(r[v_idx]) if r[v_idx] is not None else None for r in tgt_rows]
 
-            # DETECT SORTING ISSUES
             if Counter(s_vals) == Counter(t_vals) and len(s_vals) > 1:
                 mtype = "Sorting Issue"
-                # Add the number of pairs (one side) to avoid doubling the issue count
                 matrix[col_name][mtype] += len(s_vals)
                 if len(samples[col_name][mtype]) < 5:
                     samples[col_name][mtype].append({
-                        "row": rk, 
-                        "src": " | ".join([v if v is not None else "[NULL]" for v in s_vals]), 
+                        "row": rk,
+                        "src": " | ".join([v if v is not None else "[NULL]" for v in s_vals]),
                         "tgt": " | ".join([v if v is not None else "[NULL]" for v in t_vals])
                     })
-                # Full report: collect all sorting records
                 if mtype not in full_report_data:
                     full_report_data[mtype] = []
                 for i in range(len(s_vals)):
@@ -371,7 +336,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                         "target": t_vals[i] if t_vals[i] is not None else "[NULL]"
                     })
             else:
-                # Standard Pairwise comparison
                 for i in range(max(len(s_vals), len(t_vals))):
                     sv = s_vals[i] if i < len(s_vals) else None
                     tv = t_vals[i] if i < len(t_vals) else None
@@ -384,7 +348,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                             matrix[col_name][mtype] += 1
                             if len(samples[col_name][mtype]) < 5:
                                 samples[col_name][mtype].append({"row": rk, "src": sv, "tgt": tv})
-                            # Full report: collect all records
                             if mtype not in full_report_data:
                                 full_report_data[mtype] = []
                             full_report_data[mtype].append({
@@ -394,9 +357,16 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                                 "target": tv if tv is not None else "[NULL]"
                             })
 
-    # ==========================================
-    # 3b. UNMATCHED & INVALID DATA EXTRACTION
-    # ==========================================
+    return matrix, samples, full_report_data
+
+
+def get_meta(cursor, key):
+    cursor.execute("SELECT Value FROM Metadata WHERE Key = ?", (key,))
+    res = cursor.fetchone()
+    return res[0] if res else "0"
+
+
+def extract_unmatched_invalid(cursor):
     unmatched_src_rows = []
     unmatched_src_cols = []
     try:
@@ -443,61 +413,69 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     except Exception as e:
         print(f"Error fetching InvalidTarget: {e}")
 
-    unmatched_src_json = json.dumps({"columns": unmatched_src_cols, "rows": unmatched_src_rows})
-    unmatched_tgt_json = json.dumps({"columns": unmatched_tgt_cols, "rows": unmatched_tgt_rows})
-    invalid_src_json = json.dumps({"columns": invalid_src_cols, "rows": invalid_src_rows})
-    invalid_tgt_json = json.dumps({"columns": invalid_tgt_cols, "rows": invalid_tgt_rows})
+    return {
+        "unmatched_src": {"columns": unmatched_src_cols, "rows": unmatched_src_rows},
+        "unmatched_tgt": {"columns": unmatched_tgt_cols, "rows": unmatched_tgt_rows},
+        "invalid_src": {"columns": invalid_src_cols, "rows": invalid_src_rows},
+        "invalid_tgt": {"columns": invalid_tgt_cols, "rows": invalid_tgt_rows}
+    }
 
+
+def extract_orphan_counts(cursor):
     try:
-        src_not_found = int(get_meta('$.reportInfo.comparisonOverview.sourceRowsNotFound'))
+        src_not_found = int(get_meta(cursor, '$.reportInfo.comparisonOverview.sourceRowsNotFound'))
     except:
         src_not_found = 0
     try:
-        tgt_not_found = int(get_meta('$.reportInfo.comparisonOverview.targetRowsNotFound'))
+        tgt_not_found = int(get_meta(cursor, '$.reportInfo.comparisonOverview.targetRowsNotFound'))
     except:
         tgt_not_found = 0
     try:
-        invalid_src_count = int(get_meta('$.reportInfo.comparisonOverview.invalidSourceRows'))
+        invalid_src_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.invalidSourceRows'))
     except:
         invalid_src_count = 0
     try:
-        invalid_tgt_count = int(get_meta('$.reportInfo.comparisonOverview.invalidTargetRows'))
+        invalid_tgt_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.invalidTargetRows'))
     except:
         invalid_tgt_count = 0
+    return {
+        "src_not_found": src_not_found,
+        "tgt_not_found": tgt_not_found,
+        "invalid_src_count": invalid_src_count,
+        "invalid_tgt_count": invalid_tgt_count
+    }
 
-    # ==========================================
-    # 4. DATA PREP FOR UI & CHARTS
-    # ==========================================
-    sorted_matrix = sorted([{"Name": k, **v, "Total": sum(v.values())} for k, v in matrix.items()], key=lambda x: x['Total'], reverse=True)
-    
-    # Bar Chart Data
+
+def prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate):
+    sorted_matrix = sorted(
+        [{"Name": k, **v, "Total": sum(v.values())} for k, v in matrix.items()],
+        key=lambda x: x['Total'], reverse=True
+    )
+
     bar_chart_labels = [r['Name'] for r in sorted_matrix[:5]]
     bar_chart_values = [r['Total'] for r in sorted_matrix[:5]]
 
-    # Data Health Calculations
     match_pct = round((matched_count / total_rows) * 100, 1) if total_rows > 0 else 0
     diff_pct = round((diff_row_count / total_rows) * 100, 1) if total_rows > 0 else 0
     missing_pct = round(100 - match_pct - diff_pct, 1) if total_rows > 0 else 0
-    if missing_pct < 0: missing_pct = 0
+    if missing_pct < 0:
+        missing_pct = 0
 
-    # ==========================================
-    # 4b. NEW KPIs & GRADE (v3.0)
-    # ==========================================
     affected_columns = len(sorted_matrix)
     critical_fields = sum(1 for r in sorted_matrix if r['Total'] > 1000)
     warning_fields = sum(1 for r in sorted_matrix if 100 < r['Total'] <= 1000)
     info_fields = sum(1 for r in sorted_matrix if r['Total'] <= 100)
     total_issues_all = sum(r['Total'] for r in sorted_matrix)
-    total_null_issues = sum(r.get('Source Value is NULL', 0) + r.get('Target Value is NULL', 0) for r in sorted_matrix)
+    total_null_issues = sum(
+        r.get('Source Value is NULL', 0) + r.get('Target Value is NULL', 0) for r in sorted_matrix
+    )
     null_rate = round((total_null_issues / total_issues_all) * 100, 1) if total_issues_all > 0 else 0
 
-    # Dominant error type
     error_type_keys = ERROR_TYPES
     error_type_totals = {t: sum(r.get(t, 0) for r in sorted_matrix) for t in error_type_keys}
     dominant_error = max(error_type_totals, key=error_type_totals.get) if error_type_totals else 'N/A'
     dominant_error_short = dominant_error.replace('Data ', '').replace('Value is ', '')
 
-    # Dynamic Grade Badge
     if pass_rate > 95:
         grade, grade_color_text, grade_color_bg, grade_color_border = 'A+', '#15803d', 'rgba(22,163,74,0.15)', 'rgba(22,163,74,0.4)'
     elif pass_rate > 90:
@@ -509,13 +487,243 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     else:
         grade, grade_color_text, grade_color_bg, grade_color_border = 'D', '#dc2626', 'rgba(239,68,68,0.15)', 'rgba(239,68,68,0.4)'
 
-    # Error Distribution Chart Data (for horizontal stacked bar)
     err_dist_labels = [r['Name'] for r in sorted_matrix]
     err_dist_data = {t: [r[t] for r in sorted_matrix] for t in ERROR_TYPES}
+
+    return {
+        "sorted_matrix": sorted_matrix,
+        "bar_chart_labels": bar_chart_labels,
+        "bar_chart_values": bar_chart_values,
+        "match_pct": match_pct,
+        "diff_pct": diff_pct,
+        "missing_pct": missing_pct,
+        "affected_columns": affected_columns,
+        "critical_fields": critical_fields,
+        "warning_fields": warning_fields,
+        "info_fields": info_fields,
+        "total_issues_all": total_issues_all,
+        "null_rate": null_rate,
+        "dominant_error": dominant_error,
+        "dominant_error_short": dominant_error_short,
+        "grade": grade,
+        "grade_color_text": grade_color_text,
+        "grade_color_bg": grade_color_bg,
+        "grade_color_border": grade_color_border,
+        "err_dist_labels": err_dist_labels,
+        "err_dist_data": err_dist_data
+    }
+
+def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_report.html", row_keys=None):
+    start_time = time.time()
+    os.makedirs(os.path.dirname(output_html), exist_ok=True)
+    if not os.path.exists(db_path):
+        print(f"Error: {db_path} not found.")
+        return
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # ==========================================
+    # 1. RETRIEVE GLOBAL METRICS
+    # ==========================================
+    report_date = get_meta(cursor, '$.reportInfo.createdAt')
+    total_rows = int(get_meta(cursor, '$.reportInfo.comparisonOverview.sourceRowsProcessed'))
+    matched_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.matchedRowsCount'))
+    diff_row_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.rowsWithDifferences'))
+    pass_rate = round((matched_count / total_rows) * 100, 2) if total_rows > 0 else 0
+
+    source_type = get_meta(cursor, '$.reportInfo.source.type')
+    source_desc = get_meta(cursor, '$.reportInfo.source.description')
+    source_sql = get_meta(cursor, '$.reportInfo.source.sql')
+    target_type = get_meta(cursor, '$.reportInfo.target.type')
+    target_desc = get_meta(cursor, '$.reportInfo.target.description')
+    target_sql = get_meta(cursor, '$.reportInfo.target.sql')
+
+    # ==========================================
+    # 2. COLUMN MAPPING
+    # ==========================================
+    cursor.execute("SELECT ColumnId, ColumnName FROM ColumnNames WHERE TableName='Differences'")
+    col_map = {str(row[0]): row[1] for row in cursor.fetchall()}
+
+    # ==========================================
+    # 2b. ROW-KEY COLUMNS
+    # ==========================================
+    if row_keys is None:
+        cursor.execute("SELECT RowKey FROM Differences WHERE RowKey IS NOT NULL LIMIT 1")
+        sample_row = cursor.fetchone()
+        if sample_row and sample_row[0]:
+            num_cols = str(sample_row[0]).count('|') + 1
+            row_key_columns = [f"col{i+1}" for i in range(num_cols)]
+        else:
+            row_key_columns = []
+    else:
+        row_key_columns = row_keys
+
+    # ==========================================
+    # 3. ADVANCED ANALYSIS (LOGIC + SORTING)
+    # ==========================================
+    matrix, samples, full_report_data = build_error_matrix(cursor, col_map)
+
+    # ==========================================
+    # 3b. UNMATCHED & INVALID DATA EXTRACTION
+    # ==========================================
+    unmatched_data = extract_unmatched_invalid(cursor)
+    unmatched_src_json = json.dumps(unmatched_data["unmatched_src"])
+    unmatched_tgt_json = json.dumps(unmatched_data["unmatched_tgt"])
+    invalid_src_json = json.dumps(unmatched_data["invalid_src"])
+    invalid_tgt_json = json.dumps(unmatched_data["invalid_tgt"])
+
+    # ==========================================
+    # 3c. ORPHAN COUNTS
+    # ==========================================
+    orphan_counts = extract_orphan_counts(cursor)
+    src_not_found = orphan_counts["src_not_found"]
+    tgt_not_found = orphan_counts["tgt_not_found"]
+    invalid_src_count = orphan_counts["invalid_src_count"]
+    invalid_tgt_count = orphan_counts["invalid_tgt_count"]
+
+    # ==========================================
+    # 4. DATA PREP FOR UI & CHARTS
+    # ==========================================
+    ui_data = prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate)
+    sorted_matrix = ui_data["sorted_matrix"]
+    bar_chart_labels = ui_data["bar_chart_labels"]
+    bar_chart_values = ui_data["bar_chart_values"]
+    match_pct = ui_data["match_pct"]
+    diff_pct = ui_data["diff_pct"]
+    missing_pct = ui_data["missing_pct"]
+    affected_columns = ui_data["affected_columns"]
+    critical_fields = ui_data["critical_fields"]
+    warning_fields = ui_data["warning_fields"]
+    info_fields = ui_data["info_fields"]
+    total_issues_all = ui_data["total_issues_all"]
+    null_rate = ui_data["null_rate"]
+    dominant_error = ui_data["dominant_error"]
+    dominant_error_short = ui_data["dominant_error_short"]
+    grade = ui_data["grade"]
+    grade_color_text = ui_data["grade_color_text"]
+    grade_color_bg = ui_data["grade_color_bg"]
+    grade_color_border = ui_data["grade_color_border"]
+    err_dist_labels = ui_data["err_dist_labels"]
+    err_dist_data = ui_data["err_dist_data"]
 
     # ==========================================
     # 5. HTML GENERATION
     # ==========================================
+    # Serialize data for client-side Excel generation
+    full_report_json_escaped = json.dumps(full_report_data).replace('</', '<\\/')
+    error_types_json = json.dumps(ERROR_TYPES)
+    matrix_json_escaped = json.dumps(matrix).replace('</', '<\\/')
+
+    ctx = {
+        "report_date": report_date,
+        "total_rows": total_rows,
+        "matched_count": matched_count,
+        "diff_row_count": diff_row_count,
+        "pass_rate": pass_rate,
+        "source_type": source_type,
+        "source_desc": source_desc,
+        "source_sql": source_sql,
+        "target_type": target_type,
+        "target_desc": target_desc,
+        "target_sql": target_sql,
+        "col_map": col_map,
+        "row_key_columns": row_key_columns,
+        "sorted_matrix": sorted_matrix,
+        "samples": samples,
+        "full_report_data": full_report_data,
+        "full_report_json_escaped": full_report_json_escaped,
+        "error_types_json": error_types_json,
+        "matrix_json_escaped": matrix_json_escaped,
+        "bar_chart_labels": bar_chart_labels,
+        "bar_chart_values": bar_chart_values,
+        "match_pct": match_pct,
+        "diff_pct": diff_pct,
+        "missing_pct": missing_pct,
+        "affected_columns": affected_columns,
+        "critical_fields": critical_fields,
+        "warning_fields": warning_fields,
+        "info_fields": info_fields,
+        "total_issues_all": total_issues_all,
+        "null_rate": null_rate,
+        "dominant_error": dominant_error,
+        "dominant_error_short": dominant_error_short,
+        "grade": grade,
+        "grade_color_text": grade_color_text,
+        "grade_color_bg": grade_color_bg,
+        "grade_color_border": grade_color_border,
+        "err_dist_labels": err_dist_labels,
+        "err_dist_data": err_dist_data,
+        "error_types": ERROR_TYPES,
+        "color_map": COLOR_MAP,
+        "unmatched_src_json": unmatched_src_json,
+        "unmatched_tgt_json": unmatched_tgt_json,
+        "invalid_src_json": invalid_src_json,
+        "invalid_tgt_json": invalid_tgt_json,
+        "src_not_found": src_not_found,
+        "tgt_not_found": tgt_not_found,
+        "invalid_src_count": invalid_src_count,
+        "invalid_tgt_count": invalid_tgt_count,
+        "db_path": db_path,
+    }
+    html_content = generate_html(ctx)
+    with open(output_html, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    conn.close()
+    print(f"Final Consolidated Dashboard Generated: {output_html}")
+
+
+
+def generate_html(ctx):
+    report_date = ctx["report_date"]
+    total_rows = ctx["total_rows"]
+    matched_count = ctx["matched_count"]
+    diff_row_count = ctx["diff_row_count"]
+    pass_rate = ctx["pass_rate"]
+    source_type = ctx["source_type"]
+    source_desc = ctx["source_desc"]
+    source_sql = ctx["source_sql"]
+    target_type = ctx["target_type"]
+    target_desc = ctx["target_desc"]
+    target_sql = ctx["target_sql"]
+    col_map = ctx["col_map"]
+    row_key_columns = ctx["row_key_columns"]
+    sorted_matrix = ctx["sorted_matrix"]
+    samples = ctx["samples"]
+    full_report_data = ctx["full_report_data"]
+    full_report_json_escaped = ctx["full_report_json_escaped"]
+    error_types_json = ctx["error_types_json"]
+    matrix_json_escaped = ctx["matrix_json_escaped"]
+    bar_chart_labels = ctx["bar_chart_labels"]
+    bar_chart_values = ctx["bar_chart_values"]
+    match_pct = ctx["match_pct"]
+    diff_pct = ctx["diff_pct"]
+    missing_pct = ctx["missing_pct"]
+    affected_columns = ctx["affected_columns"]
+    critical_fields = ctx["critical_fields"]
+    warning_fields = ctx["warning_fields"]
+    info_fields = ctx["info_fields"]
+    total_issues_all = ctx["total_issues_all"]
+    null_rate = ctx["null_rate"]
+    dominant_error = ctx["dominant_error"]
+    dominant_error_short = ctx["dominant_error_short"]
+    grade = ctx["grade"]
+    grade_color_text = ctx["grade_color_text"]
+    grade_color_bg = ctx["grade_color_bg"]
+    grade_color_border = ctx["grade_color_border"]
+    err_dist_labels = ctx["err_dist_labels"]
+    err_dist_data = ctx["err_dist_data"]
+    ERROR_TYPES = ctx["error_types"]
+    COLOR_MAP = ctx["color_map"]
+    unmatched_src_json = ctx["unmatched_src_json"]
+    unmatched_tgt_json = ctx["unmatched_tgt_json"]
+    invalid_src_json = ctx["invalid_src_json"]
+    invalid_tgt_json = ctx["invalid_tgt_json"]
+    src_not_found = ctx["src_not_found"]
+    tgt_not_found = ctx["tgt_not_found"]
+    invalid_src_count = ctx["invalid_src_count"]
+    invalid_tgt_count = ctx["invalid_tgt_count"]
+    db_path = ctx["db_path"]
     # Pre-compute column totals for the sticky footer
     total_diffs = sum(r['Total'] for r in sorted_matrix)
     col_totals_html = "".join(
@@ -641,11 +849,6 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
                 </div>
             </td>
         </tr>"""
-
-    # Serialize data for client-side Excel generation
-    full_report_json_escaped = json.dumps(full_report_data).replace('</', '<\\/')
-    error_types_json = json.dumps(ERROR_TYPES)
-    matrix_json_escaped = json.dumps(matrix).replace('</', '<\\/')
 
     html_content = f"""
     <!DOCTYPE html>
@@ -2894,10 +3097,8 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     </body>
     </html>
     """
-    with open(output_html, "w", encoding="utf-8") as f:
-        f.write(html_content)
-    conn.close()
-    print(f"Final Consolidated Dashboard Generated: {output_html}")
+    return html_content
+
 
 if __name__ == "__main__":
     db_name = "tosca_report.db"
