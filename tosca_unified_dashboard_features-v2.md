@@ -1,4 +1,4 @@
-# TOSCA Data Integrity Report Dashboard â€” Feature & Implementation Reference (v3.1 Enterprise Diagnostics)
+# TOSCA Data Integrity Report Dashboard â€” Feature & Implementation Reference (v4.0 Enterprise Diagnostics)
 
 > **Purpose:** This document is the single source of truth for the TOSCA DI Report Dashboard project. It captures every implemented feature, architectural decision, and UI/UX specification so that any new team member can onboard immediately without prior context.
 
@@ -18,6 +18,24 @@ The TOSCA DI Report Dashboard is a **single-file Python utility** (`tosca_di_rep
 | Testing | Pytest + Playwright | Headless Firefox browser tests (Chromium headless shell has ICU issues on Windows) |
 | Typography | Google Fonts (Inter) | Loaded at runtime for crisp enterprise feel |
 | Output | Single HTML file | Fully self-contained; no server needed |
+
+### Code Architecture (v4.0)
+
+The generator (`tosca_di_report_dashboard.py`) is organized into focused module-level functions:
+
+| Function | Responsibility |
+|---|---|
+| `inline_diff()` | Character-level LCS diff for sample HTML |
+| `format_val_html()` | Renders cell values (NULL, empty, or escaped text) |
+| `is_date_like()` | Heuristic date-string detection |
+| `get_meta()` | SQLite metadata value lookup |
+| `get_mismatch_type()` | Classifies pairwise diff into 15 error types |
+| `build_error_matrix()` | Query Differences table; classify all pairs into matrix, samples, full_report_data |
+| `extract_unmatched_invalid()` | Fetch unmatched source/target + invalid rows |
+| `extract_orphan_counts()` | Read orphan row counts from Metadata |
+| `prepare_ui_data()` | Compute KPIs, grade badge, chart data, dominant error |
+| `generate_html()` | Pure HTML template — receives all data via `ctx` dict |
+| `generate_unified_dashboard()` | **Orchestrator** — connect to DB, call helpers, build ctx, call `generate_html()`, write file |
 
 ### Folder Structure
 
@@ -331,6 +349,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
 
 | Date | Version | Change | Details |
 |---|---|---|---|
+| 2026-05-29 | **v4.0 Architecture Refactor** | Extracted 7 module-level functions from monolithic `generate_unified_dashboard` | Refactored ~2700-line `generate_unified_dashboard` into orchestrator (~670 lines) + 7 extracted functions: `get_meta`, `get_mismatch_type`, `build_error_matrix`, `extract_unmatched_invalid`, `extract_orphan_counts`, `prepare_ui_data`, `generate_html(ctx)`. The HTML template is now a pure function receiving all data via a `ctx` dict. File size: 2910 → 3116 lines (+206 for extracted definitions). All 23 tests pass identically (22/23, pre-existing Firefox clipboard issue). |
 | 2026-05-25 | **v3.5 Excel Report & Skill** | Client-side Excel, sidebar Downloads section, crosshair color, profile label, test-gate skill | Added client-side Excel Report via SheetJS CDN (17 sheets, 25K+ records embedded as JSON). Added "Downloads" sidebar section header with Excel Report button. Changed crosshair row highlight from amber to sky blue (bg-sky-50/60) for light mode readability. Changed profile label from "System Admin" to "Automation Team". Created `.opencode/skills/tosca-test-gate/` with 6-gate development process and `/test-gate` slash command. Added 4 Excel/Downloads Playwright tests + 4 matrix layout tests. Expanded test suite from 15 to 23 tests. Removed output/ files from Git tracking across all branches. | |
 | 2026-05-21 | **v3.4 Scroll-Spy Bugfix & Crosshair** | Scroll-spy fix, Orphaned tab rename, crosshair hover, sidebar nav test | Fixed scroll-spy `sections` array order so Test Queries nav link gets `nav-active` styling. Renamed "Orphaned & Invalid Records" to "Orphaned Records". Replaced column-only hover with full crosshair (row + column) highlighting — column uses indigo, row uses amber for clear visual distinction. Fixed light mode hover colors (indigo-500/10 → indigo-100). Added `test_sidebar_nav_active`. Expanded test suite from 11 to 12 Playwright tests. |
 | 2026-05-21 | **v3.3 Interactivity & UX Polish** | Sidebar reorder, Orphaned tab trim, Dark mode rework, Chart/Matrix filters | Moved Test Queries to last sidebar position. Removed Invalid Source/Target tiles from Orphaned tab (now 2-tile grid: Source Orphans, Target Orphans). Overhauled dark mode to GitHub-dark palette (#0d1117/#161b22). Added bar chart click-to-filter matrix, Mismatch Type dropdown, Active Filters badge, column hover highlighting. Expanded test suite from 7 to 11 Playwright tests. |
