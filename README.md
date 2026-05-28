@@ -56,7 +56,7 @@ No build step, no server runtime, no external API calls. The HTML loads everythi
 ## Project Structure
 
 ```
-tosca_di_report_dashboard.py       # Main generator (single file, 3000+ lines)
+tosca_di_report_dashboard.py       # Main generator (single file, ~3100 lines)
 tests/test_dashboard.py            # 23 Playwright tests
 output/tosca_enterprise_report.html # Generated dashboard
 tosca_report.db                    # Input SQLite database
@@ -64,6 +64,21 @@ tosca_unified_dashboard_features-v2.md  # Feature reference documentation
 opencode.json                      # opencode slash commands
 .opencode/skills/tosca-test-gate/  # Development process automation skill
 ```
+
+### Code Architecture (v4.0)
+
+The generator is organized into focused module-level functions:
+
+| Function | Responsibility |
+|---|---|
+| `get_meta()` | SQLite metadata value lookup |
+| `get_mismatch_type()` | Classifies pairwise diff into 15 error types |
+| `build_error_matrix()` | Query Differences table; classify all pairs |
+| `extract_unmatched_invalid()` | Fetch unmatched source/target + invalid rows |
+| `extract_orphan_counts()` | Read orphan row counts from Metadata |
+| `prepare_ui_data()` | Compute KPIs, grade badge, chart data |
+| `generate_html()` | Pure HTML template — receives all data via `ctx` dict |
+| `generate_unified_dashboard()` | **Orchestrator** — connect → call helpers → build ctx → generate HTML → write file |
 
 ## Branch Strategy
 
