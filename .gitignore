@@ -7,4 +7,5 @@ __pycache__/
 scratch/
 output/*
 tests/__pycache__/
+tests/.last_run.txt
 metadata_info.txt

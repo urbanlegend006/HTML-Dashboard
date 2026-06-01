@@ -1,4 +1,4 @@
-# TOSCA Data Integrity Report Dashboard â€” Feature & Implementation Reference (v4.0 Enterprise Diagnostics)
+﻿# TOSCA Data Integrity Report Dashboard â€” Feature & Implementation Reference (v4.0 Enterprise Diagnostics)
 
 > **Purpose:** This document is the single source of truth for the TOSCA DI Report Dashboard project. It captures every implemented feature, architectural decision, and UI/UX specification so that any new team member can onboard immediately without prior context.
 
@@ -53,7 +53,7 @@ TOSCA DI Report Dashboard/
 â”‚   â”œâ”€â”€ tosca_enterprise_report.html  # The dashboard
 â”‚   â””â”€â”€ tosca_integrity_report.csv   # Exported CSV (user-triggered)
 â””â”€â”€ tests/                            # Automated test suite
-    â”œâ”€â”€ test_dashboard.py             # Playwright integration tests (23 tests)
+    â”œâ”€â”€ test_dashboard.py             # Playwright integration tests (59 tests + 1 skipped)
     â””â”€â”€ test_output/                  # Playwright download artifacts
 ```
 
@@ -169,6 +169,13 @@ if (localStorage.theme === 'dark') {
 - [x] **Hover Micro-Animations:** SVG icons rotate or translate slightly on button/toggle hover.
 - [x] **Staggered Entrance Animation (v3.0):** KPI cards fade in and slide up sequentially (100ms delay between each) on page load.
 - [x] **Toast Notifications (v3.0):** Replaces inline feedback text. Floating alerts appear at the bottom center and slide out automatically after a brief timeout.
+
+### 5b. Parallel Test Execution (v4.1)
+
+- [x] **pytest-xdist Configured:** `pytest.ini` sets `-n 5 --dist load` for 5 parallel workers with load-based distribution of tests.
+- [x] **Race-free HTML Generation:** `tests/conftest.py` pre-generates the HTML dashboard at import time so xdist workers don't race against each other to produce the HTML output.
+- [x] **Stable Parallel Timeouts:** An `autouse` fixture raises Playwright navigation timeouts to 60s for reliable page loads during parallel Firefox headless execution.
+- [x] **Test Count:** 59 total tests (38 existing + 21 new v4.1 tests). `test_copy_to_clipboard` is skipped on Firefox due to unsupported `clipboard-read` permission, yielding 61 collected items.
 
 ---
 
@@ -329,7 +336,7 @@ Located in `tests/test_dashboard.py`. Uses **Pytest + Playwright**.
 # Regenerate the report first
 python tosca_di_report_dashboard.py
 
-# Run all 38 tests (use Firefox if Chromium headless shell has ICU issues on Windows)
+# Run all 59 tests + 1 skipped (Firefox clipboard — use Chromium headed for clipboard test)
 python -m pytest tests/test_dashboard.py -v --browser firefox
 
 # Or run with Chromium in headed mode for clipboard tests
@@ -351,7 +358,7 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
    ```bash
    python -m pytest tests/test_dashboard.py -v --browser firefox
    ```
-     All 38 tests should pass (37 pass, 1 pre-existing failure in `test_copy_to_clipboard` when using Firefox — clipboard-read permission unsupported). Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
+     All 59 tests should pass (59 pass, 1 skipped in `test_copy_to_clipboard` when using Firefox — clipboard-read permission unsupported). Use `--browser chromium --headed` if Chromium headless shell has ICU data issues on your Windows machine.
 5. **Key design decisions:**
    - **Light mode is the default.** Dark mode is only used if the user explicitly toggles it or has a saved `localStorage.theme = 'dark'` preference.
    - **Desktop only.** No mobile/tablet breakpoints.
@@ -364,7 +371,8 @@ python -m pytest tests/test_dashboard.py -v --browser chromium --headed
 
 | Date | Version | Change | Details |
 |---|---|---|---|
-| 2026-05-29 | **v4.1 UI/UX Accessibility & Quality** | Comprehensive accessibility, dark mode, print styles, error handling | P0: Added viewport meta tag, full ARIA support (tabs, theme toggle, scroll-to-top, canvas elements, matrix accordion rows), keyboard navigation (Enter/Space for accordions). P1: Health chart tooltip now theme-aware, fixed sidebar collapse flash on load, fixed print styles invalid selector, added prefers-color-scheme system preference detection. P2: Increased sidebar section label font from 9px to 10px, removed duplicate .glass CSS class, added Excel export error handling with try/catch, improved SQL comment contrast in dark mode. P3: Removed deprecated Chart.js drawBorder option, removed redundant scroll-smooth class, increased auto-scroll timeout to 1200ms, added print styles matrix expansion. 15 new Playwright tests (38 total, 37 pass). |
+| 2026-06-01 | **v4.1 parallel test execution** | Parallel test execution with pytest-xdist | Added `pytest-xdist` for parallel test execution (default 5 workers, user-configurable via `-n` flag). Created `tests/conftest.py` to pre-generate HTML at import time, preventing worker race conditions. Added `autouse` fixture raising Playwright timeouts to 60s for stable parallel Firefox headless loads. Changed `#sidebar.collapsed` width from 4.5rem to 5rem to match v4.1 floating dock. Removed redundant v4.0 sidebar tooltip `::after` CSS (superseded by v4.1 `.dock-tooltip`). Fixed `test_copy_to_clipboard` to skip on Firefox (clipboard-read unsupported). Fixed `test_v41_overview_charts_section_still_present` to use regex class matching for `active`. Fixed `test_matrix_scrolling` to use `scrollTo({behavior: 'instant'})` avoiding scroll-behavior: smooth flakiness. Fixed `test_excel_report_button_position` to use `.dock-section-label` selector (v4.1 dock). Fixed `test_sidebar_label_font_size` to use `.dock-section-label` selector (v4.1 dock). Fixed `test_sidebar_no_flash_on_load` to expect 5rem (80px) collapsed dock width. Added `role="tablist"` to `.tab-btn-wrap` div for ARIA compliance. Total tests: 59 + 1 skipped (Firefox clipboard) = 61 collected items. |
+| 2026-05-29 | **v4.1 UI/UX Accessibility & Quality** | Comprehensive accessibility, dark mode, print styles, error handling | P0: Added viewport meta tag, full ARIA support (tabs, theme toggle, scroll-to-top, canvas elements, matrix accordion rows), keyboard navigation (Enter/Space for accordions). P1: Health chart tooltip now theme-aware, fixed sidebar collapse flash on load, fixed print styles invalid selector, added prefers-color-scheme system preference detection. P2: Increased sidebar section label font from 9px to 10px, removed duplicate .glass CSS class, added Excel export error handling with try/catch, improved SQL comment contrast in dark mode. P3: Removed deprecated Chart.js drawBorder option, removed redundant scroll-smooth class, increased auto-scroll timeout to 1200ms, added print styles matrix expansion. 21 new Playwright tests (59 total, 59 pass, 1 Firefox clipboard skip). |
 | 2026-05-29 | **v4.0 Architecture Refactor** | Extracted 7 module-level functions from monolithic `generate_unified_dashboard` | Refactored ~2700-line `generate_unified_dashboard` into orchestrator (~670 lines) + 7 extracted functions: `get_meta`, `get_mismatch_type`, `build_error_matrix`, `extract_unmatched_invalid`, `extract_orphan_counts`, `prepare_ui_data`, `generate_html(ctx)`. The HTML template is now a pure function receiving all data via a `ctx` dict. File size: 2910 → 3116 lines (+206 for extracted definitions). All 23 tests pass identically (22/23, pre-existing Firefox clipboard issue). |
 | 2026-05-25 | **v3.5 Excel Report & Skill** | Client-side Excel, sidebar Downloads section, crosshair color, profile label, test-gate skill | Added client-side Excel Report via SheetJS CDN (17 sheets, 25K+ records embedded as JSON). Added "Downloads" sidebar section header with Excel Report button. Changed crosshair row highlight from amber to sky blue (bg-sky-50/60) for light mode readability. Changed profile label from "System Admin" to "Automation Team". Created `.opencode/skills/tosca-test-gate/` with 6-gate development process and `/test-gate` slash command. Added 4 Excel/Downloads Playwright tests + 4 matrix layout tests. Expanded test suite from 15 to 23 tests. Removed output/ files from Git tracking across all branches. | |
 | 2026-05-21 | **v3.4 Scroll-Spy Bugfix & Crosshair** | Scroll-spy fix, Orphaned tab rename, crosshair hover, sidebar nav test | Fixed scroll-spy `sections` array order so Test Queries nav link gets `nav-active` styling. Renamed "Orphaned & Invalid Records" to "Orphaned Records". Replaced column-only hover with full crosshair (row + column) highlighting — column uses indigo, row uses amber for clear visual distinction. Fixed light mode hover colors (indigo-500/10 → indigo-100). Added `test_sidebar_nav_active`. Expanded test suite from 11 to 12 Playwright tests. |

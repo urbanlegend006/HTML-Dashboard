@@ -7,7 +7,7 @@ import html
 import hashlib
 import time
 
-__version__ = "4.0"
+__version__ = "4.1"
 
 
 def inline_diff(source, target):
@@ -903,7 +903,7 @@ def generate_html(ctx):
                 overflow: hidden;
             }}
             #sidebar.collapsed {{
-                width: 4.5rem;
+                width: 5rem;
             }}
             #sidebar .sidebar-label {{
                 transition: opacity 0.25s, max-width 0.25s;
@@ -1165,28 +1165,9 @@ def generate_html(ctx):
             #sidebar.collapsed nav a {{
                 position: relative;
             }}
-            #sidebar.collapsed nav a:hover::after {{
-                content: attr(title);
-                position: absolute;
-                left: calc(100% + 8px);
-                top: 50%;
-                transform: translateY(-50%);
-                padding: 6px 12px;
-                background: #0f172a;
-                color: #e2e8f0;
-                font-size: 11px;
-                font-weight: 700;
-                border-radius: 8px;
-                white-space: nowrap;
-                z-index: 999;
-                pointer-events: none;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                border: 1px solid rgba(99,102,241,0.2);
-            }}
-            .dark #sidebar.collapsed nav a:hover::after {{
-                background: #1e293b;
-                border-color: rgba(99,102,241,0.3);
-            }}
+            /* v4.0 tooltip ::after is intentionally NOT redeclared here.
+               The v4.1 Floating Dock sidebar uses dedicated .dock-tooltip
+               spans for collapsed-state hover labels (see line ~1688). */
 
             /* v4.0 Gradient Active Nav Pill */
             .nav-active {{
@@ -1390,12 +1371,345 @@ def generate_html(ctx):
                 .kpi-card::after {{ display: none; }}
                 .stagger-card {{ opacity: 1 !important; animation: none !important; }}
                 .grade-badge {{ animation: none !important; }}
+                .cmd-palette-overlay, .theme-ripple {{ display: none !important; }}
+                .tab-indicator {{ display: none !important; }}
                 * {{
                     color-adjust: exact !important;
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                 }}
                 html.dark body {{ background: white !important; color: #0f172a !important; }}
+            }}
+
+            /* ========================================
+               v4.1 Modern UI/UX Improvements
+               ======================================== */
+
+            /* === Feature #2: Bento Grid Layout === */
+            .kpi-bento-grid {{
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                grid-auto-rows: minmax(180px, auto);
+                gap: 1.5rem;
+            }}
+            .kpi-bento-hero {{
+                grid-column: span 2;
+                grid-row: span 2;
+            }}
+            .kpi-bento-large {{
+                grid-column: span 2;
+            }}
+            @media (max-width: 1024px) {{
+                .kpi-bento-grid {{ grid-template-columns: repeat(2, 1fr); }}
+                .kpi-bento-hero {{ grid-column: span 2; grid-row: span 1; }}
+                .kpi-bento-large {{ grid-column: span 2; }}
+            }}
+            @media (max-width: 640px) {{
+                .kpi-bento-grid {{ grid-template-columns: 1fr; }}
+                .kpi-bento-hero, .kpi-bento-large {{ grid-column: span 1; }}
+            }}
+
+            /* === Feature #1: Command Palette (Cmd+K) === */
+            .cmd-palette-overlay {{
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.6);
+                backdrop-filter: blur(8px);
+                z-index: 1000;
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                padding-top: 12vh;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 200ms ease;
+            }}
+            .cmd-palette-overlay.open {{
+                opacity: 1;
+                pointer-events: auto;
+            }}
+            .cmd-palette-modal {{
+                width: 100%;
+                max-width: 640px;
+                background: rgba(255, 255, 255, 0.98);
+                border: 1px solid rgba(226, 232, 240, 0.8);
+                border-radius: 1rem;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.1);
+                transform: translateY(-20px) scale(0.95);
+                transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+                overflow: hidden;
+            }}
+            .dark .cmd-palette-modal {{
+                background: rgba(22, 27, 34, 0.98);
+                border-color: rgba(48, 54, 61, 0.8);
+            }}
+            .cmd-palette-overlay.open .cmd-palette-modal {{
+                transform: translateY(0) scale(1);
+            }}
+            .cmd-palette-input-wrap {{
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 1rem 1.25rem;
+                border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+            }}
+            .dark .cmd-palette-input-wrap {{
+                border-bottom-color: rgba(48, 54, 61, 0.6);
+            }}
+            .cmd-palette-input {{
+                flex: 1;
+                background: transparent;
+                border: none;
+                outline: none;
+                font-size: 1rem;
+                font-weight: 500;
+                color: #0f172a;
+            }}
+            .dark .cmd-palette-input {{
+                color: #e6edf3;
+            }}
+            .cmd-palette-input::placeholder {{
+                color: #94a3b8;
+            }}
+            .cmd-palette-kbd {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.25rem;
+                padding: 0.25rem 0.5rem;
+                font-size: 10px;
+                font-weight: 700;
+                font-family: ui-monospace, monospace;
+                color: #64748b;
+                background: rgba(226, 232, 240, 0.6);
+                border: 1px solid rgba(203, 213, 225, 0.6);
+                border-radius: 0.375rem;
+            }}
+            .dark .cmd-palette-kbd {{
+                color: #94a3b8;
+                background: rgba(30, 41, 59, 0.6);
+                border-color: rgba(71, 85, 105, 0.6);
+            }}
+            .cmd-palette-results {{
+                max-height: 50vh;
+                overflow-y: auto;
+                padding: 0.5rem;
+            }}
+            .cmd-palette-item {{
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 0.625rem 0.875rem;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                color: #334155;
+                transition: background 100ms;
+            }}
+            .dark .cmd-palette-item {{
+                color: #cbd5e1;
+            }}
+            .cmd-palette-item:hover,
+            .cmd-palette-item.selected {{
+                background: rgba(99, 102, 241, 0.1);
+                color: #4f46e5;
+            }}
+            .dark .cmd-palette-item:hover,
+            .dark .cmd-palette-item.selected {{
+                background: rgba(99, 102, 241, 0.15);
+                color: #a5b4fc;
+            }}
+            .cmd-palette-section-label {{
+                padding: 0.5rem 0.875rem 0.25rem;
+                font-size: 10px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: #94a3b8;
+            }}
+            .cmd-palette-empty {{
+                padding: 2rem 1rem;
+                text-align: center;
+                font-size: 12px;
+                color: #94a3b8;
+            }}
+
+            /* === Feature #3: Sliding Tab Indicator === */
+            .tab-btn-wrap {{
+                position: relative;
+                display: inline-flex;
+                padding: 0.25rem;
+                background: rgba(241, 245, 249, 0.7);
+                border-radius: 0.875rem;
+                border: 1px solid rgba(226, 232, 240, 0.9);
+            }}
+            .dark .tab-btn-wrap {{
+                background: rgba(30, 41, 59, 0.5);
+                border-color: rgba(48, 54, 61, 0.6);
+            }}
+            .tab-indicator {{
+                position: absolute;
+                top: 0.25rem;
+                bottom: 0.25rem;
+                background: rgba(255, 255, 255, 0.95);
+                border-radius: 0.625rem;
+                box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05);
+                border: 1px solid rgba(99, 102, 241, 0.2);
+                transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1), width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 0;
+            }}
+            .dark .tab-indicator {{
+                background: rgba(22, 27, 34, 0.95);
+                border-color: rgba(99, 102, 241, 0.3);
+            }}
+            .tab-btn-wrap .tab-btn {{
+                position: relative;
+                z-index: 1;
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+            }}
+            .tab-btn-wrap .tab-btn.active {{
+                color: #4f46e5 !important;
+                background: transparent !important;
+            }}
+            .dark .tab-btn-wrap .tab-btn.active {{
+                color: #a5b4fc !important;
+            }}
+            .tab-btn-wrap .tab-btn.active::after {{
+                display: none;
+            }}
+
+            /* === Feature #4: Theme Transition Ripple === */
+            .theme-ripple {{
+                position: fixed;
+                border-radius: 50%;
+                background: rgba(99, 102, 241, 0.25);
+                pointer-events: none;
+                z-index: 9999;
+                transform: scale(0);
+                opacity: 1;
+                transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1), opacity 700ms ease;
+            }}
+            .theme-ripple.expand {{
+                transform: scale(80);
+                opacity: 0;
+            }}
+            html.theme-transitioning,
+            html.theme-transitioning * {{
+                transition: background-color 400ms ease, color 400ms ease, border-color 400ms ease, box-shadow 400ms ease !important;
+            }}
+
+            /* === Feature #5: Floating Dock Sidebar === */
+            .dock-container {{
+                position: fixed;
+                left: 12px;
+                top: 12px;
+                bottom: 12px;
+                width: 16rem;
+                background: rgba(255, 255, 255, 0.85);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border: 1px solid rgba(255, 255, 255, 0.4);
+                border-radius: 1.25rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+                z-index: 40;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+                overflow: hidden;
+            }}
+            .dark .dock-container {{
+                background: rgba(22, 27, 34, 0.85);
+                border-color: rgba(48, 54, 61, 0.6);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            }}
+            .dock-container.collapsed {{
+                width: 5rem;
+            }}
+            .dock-nav-item {{
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 0.75rem 1rem;
+                border-radius: 0.875rem;
+                color: #475569;
+                font-weight: 500;
+                font-size: 0.875rem;
+                transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1), background 180ms, color 180ms;
+                transform-origin: left center;
+            }}
+            .dark .dock-nav-item {{
+                color: #cbd5e1;
+            }}
+            .dock-container:not(.collapsed) .dock-nav-item:hover {{
+                transform: scale(1.03);
+                background: rgba(99, 102, 241, 0.08);
+            }}
+            .dark .dock-container:not(.collapsed) .dock-nav-item:hover {{
+                background: rgba(99, 102, 241, 0.12);
+            }}
+            .dock-nav-item.nav-active-floating {{
+                background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1)) !important;
+                color: #4f46e5 !important;
+                font-weight: 700 !important;
+                box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+            }}
+            .dark .dock-nav-item.nav-active-floating {{
+                color: #a5b4fc !important;
+            }}
+            .dock-magnify-icon {{
+                transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            .dock-container:not(.collapsed) .dock-nav-item:hover .dock-magnify-icon {{
+                transform: scale(1.2);
+            }}
+            .dock-tooltip {{
+                position: absolute;
+                left: calc(100% + 12px);
+                top: 50%;
+                transform: translateY(-50%);
+                padding: 0.375rem 0.75rem;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-size: 11px;
+                font-weight: 700;
+                border-radius: 0.5rem;
+                white-space: nowrap;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 150ms, left 150ms;
+                z-index: 999;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }}
+            .dark .dock-tooltip {{
+                background: #1e293b;
+            }}
+            .dock-container.collapsed .dock-nav-item:hover .dock-tooltip {{
+                opacity: 1;
+                left: calc(100% + 16px);
+            }}
+            .dock-section-label {{
+                font-size: 10px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: #94a3b8;
+                padding: 0.75rem 1rem 0.25rem 1rem;
+            }}
+            .dock-content-area {{
+                margin-left: 16.75rem;
+                transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            }}
+            .dock-content-area.collapsed {{
+                margin-left: 5.75rem;
+            }}
+            @media (max-width: 768px) {{
+                .dock-container {{ transform: translateX(-110%); }}
+                .dock-container.mobile-open {{ transform: translateX(0); }}
+                .dock-content-area, .dock-content-area.collapsed {{ margin-left: 0; }}
             }}
         </style>
 
@@ -1408,13 +1722,13 @@ def generate_html(ctx):
         <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
     </head>
-    <body class="font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased flex h-screen overflow-hidden">
-        
-        <!-- Sidebar -->
-        <aside id="sidebar" class="bg-white dark:bg-[#161b22] border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between shrink-0 z-40">
-            <div>
+    <body class="font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased h-screen overflow-hidden">
+
+        <!-- Feature #5: Floating Dock Sidebar -->
+        <aside id="sidebar" class="dock-container">
+            <div class="flex flex-col h-full overflow-y-auto">
                 <!-- Logo Row -->
-                <div class="h-20 flex items-center px-5 border-b border-slate-100 dark:border-slate-800/50">
+                <div class="h-20 flex items-center px-5 border-b border-slate-100/60 dark:border-slate-800/50">
                     <div class="flex items-center gap-3 min-w-0">
                         <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
                             <span class="text-white font-black text-xl leading-none">T</span>
@@ -1433,34 +1747,46 @@ def generate_html(ctx):
                     </button>
                 </div>
                 <!-- Nav Links -->
-                <nav class="px-3 py-2 space-y-0.5">
-                    <div class="sidebar-section-label sidebar-label">Dashboard</div>
-                    <a href="#kpi-section" id="nav-kpi" title="Overview" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all nav-active">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                <nav class="px-3 py-2 space-y-0.5 flex-1">
+                    <div class="dock-section-label sidebar-label">Dashboard</div>
+                    <a href="#kpi-section" id="nav-kpi" data-nav-id="kpi-section" title="Overview" class="dock-nav-item nav-active-floating">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg></span>
                         <span class="sidebar-label">Overview</span>
+                        <span class="dock-tooltip">Overview</span>
                     </a>
-                    <a href="#charts" id="nav-charts" title="Analytics" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <a href="#charts" id="nav-charts" data-nav-id="charts" title="Analytics" class="dock-nav-item">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></span>
                         <span class="sidebar-label">Analytics</span>
+                        <span class="dock-tooltip">Analytics</span>
                     </a>
-                    <div class="sidebar-section-label sidebar-label" style="margin-top:12px">Data</div>
-                    <a href="#matrix" id="nav-matrix" title="Integrity Matrix" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <div class="dock-section-label sidebar-label" style="margin-top:8px">Data</div>
+                    <a href="#matrix" id="nav-matrix" data-nav-id="matrix" title="Integrity Matrix" class="dock-nav-item">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></span>
                         <span class="sidebar-label">Integrity Matrix</span>
+                        <span class="dock-tooltip">Integrity Matrix</span>
                     </a>
-                    <a href="#test-queries" id="nav-queries" title="Test Queries" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9h8M8 13h6m-9 8h14a2 2 0 002-2V7a2 2 0 00-.586-1.414l-3-3A2 2 0 0017 2H5a2 2 0 00-2 2v15a2 2 0 002 2z"></path></svg>
+                    <a href="#test-queries" id="nav-queries" data-nav-id="test-queries" title="Test Queries" class="dock-nav-item">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9h8M8 13h6m-9 8h14a2 2 0 002-2V7a2 2 0 00-.586-1.414l-3-3A2 2 0 0017 2H5a2 2 0 00-2 2v15a2 2 0 002 2z"></path></svg></span>
                         <span class="sidebar-label">Test Queries</span>
+                        <span class="dock-tooltip">Test Queries</span>
                     </a>
-                    <div class="sidebar-section-label sidebar-label" style="margin-top:12px">Downloads</div>
-                    <a href="#" id="excel-report-btn" onclick="downloadExcelReport();return false;" title="Download Full Excel Report" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl font-medium text-sm transition-all">
-                        <svg class="w-5 h-5 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <div class="dock-section-label sidebar-label" style="margin-top:8px">Downloads</div>
+                    <a href="#" id="excel-report-btn" onclick="downloadExcelReport();return false;" title="Download Full Excel Report" class="dock-nav-item">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></span>
                         <span class="sidebar-label">Excel Report</span>
+                        <span class="dock-tooltip">Excel Report</span>
                     </a>
+                    <!-- Feature #1: Command Palette Hint -->
+                    <button id="cmd-palette-trigger" onclick="openCommandPalette()" title="Open command palette (Ctrl+K)" class="dock-nav-item w-full text-left mt-2 border border-dashed border-slate-300/60 dark:border-slate-700/50">
+                        <span class="dock-magnify-icon shrink-0"><svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></span>
+                        <span class="sidebar-label text-slate-500 dark:text-slate-400">Quick Search</span>
+                        <span class="sidebar-label ml-auto cmd-palette-kbd" style="font-size:9px">Ctrl K</span>
+                        <span class="dock-tooltip">Command Palette (Ctrl+K)</span>
+                    </button>
                 </nav>
             </div>
             <!-- User Profile -->
-            <div class="px-4 py-5 border-t border-slate-100 dark:border-slate-800/50">
+            <div class="px-4 py-5 border-t border-slate-100/60 dark:border-slate-800/50">
                 <div class="flex items-center gap-3 min-w-0">
                     <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
                         QA
@@ -1474,7 +1800,7 @@ def generate_html(ctx):
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <main class="dock-content-area flex flex-col h-screen overflow-hidden relative">
             
             <!-- Top Header -->
             <header class="gradient-header backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-30 shrink-0 shadow-sm">
@@ -1528,131 +1854,139 @@ def generate_html(ctx):
                             <h2 class="text-lg font-black tracking-tight text-slate-900 dark:text-white">Summary and KPIs</h2>
                             <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">High-level integrity metrics for the current comparison run.</p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <!-- Total Rows -->
-                        <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
-                            <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path></svg>
+                        <div class="kpi-bento-grid">
+                        <!-- Bento Hero: Pass Rate -->
+                        <div class="kpi-bento-hero stagger-card kpi-card glass-card p-8 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col justify-between bg-gradient-to-br from-indigo-50/80 to-white/40 dark:from-indigo-950/30 dark:to-slate-900/20">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Overall Pass Rate</p>
+                                    <h3 class="text-6xl font-black text-indigo-600 dark:text-indigo-400 kpi-counter kpi-skeleton leading-none" data-target="{pass_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
                                 </div>
-                                <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Dataset</span>
+                                <span class="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-[11px] font-black px-3 py-1.5 rounded-lg uppercase tracking-wide">Target 100%</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Source Rows</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{total_rows}" aria-label="Loading KPI value"></h3>
+                            <div class="mt-6">
+                                <div class="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+                                    <span>Grade {grade}</span>
+                                    <span>{total_diffs:,} issues</span>
+                                </div>
+                                <div class="w-full bg-slate-200/70 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                    <div id="passRateBar" class="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Matches -->
+                        <!-- Bento Card 1: Total Rows -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path></svg>
                                 </div>
-                                <span class="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">+{match_pct}%</span>
+                                <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">Dataset</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Identical Matches</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{matched_count}" aria-label="Loading KPI value"></h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Total Source Rows</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{total_rows}" aria-label="Loading KPI value"></h3>
                         </div>
 
-                        <!-- Differences -->
+                        <!-- Bento Card 2: Matches -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-600 dark:text-red-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-green-50 dark:bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 </div>
-                                <span class="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">! {diff_pct}%</span>
+                                <span class="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">+{match_pct}%</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Rows with Diffs</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{diff_row_count}" aria-label="Loading KPI value"></h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Identical Matches</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{matched_count}" aria-label="Loading KPI value"></h3>
                         </div>
 
-                        <!-- Pass Rate -->
+                        <!-- Bento Card 3: Differences -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-600 dark:text-red-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                 </div>
-                                <span class="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Target 100%</span>
+                                <span class="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">! {diff_pct}%</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Overall Pass Rate</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{pass_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
-                        </div>
-                    </div>
-
-                    <!-- KPI Cards Row 2 (v3.0) -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-                        <!-- Affected Columns -->
-                        <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
-                            <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                                </div>
-                                <span class="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Scope</span>
-                            </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Affected Columns</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{affected_columns}" aria-label="Loading KPI value"></h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Rows with Diffs</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{diff_row_count}" aria-label="Loading KPI value"></h3>
                         </div>
 
-                        <!-- Critical Fields -->
+                        <!-- Bento Card 4: Affected Columns -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                                 </div>
-                                <span class="bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Alert</span>
+                                <span class="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">Scope</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Critical Fields</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{critical_fields}" aria-label="Loading KPI value"></h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Affected Columns</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{affected_columns}" aria-label="Loading KPI value"></h3>
                         </div>
 
-                        <!-- NULL Rate -->
+                        <!-- Bento Card 5: Critical Fields -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                                 </div>
-                                <span class="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Nulls</span>
+                                <span class="bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">Alert</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">NULL Issue Rate</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{null_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Critical Fields</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{critical_fields}" aria-label="Loading KPI value"></h3>
                         </div>
 
-                        <!-- Dominant Error -->
+                        <!-- Bento Card 6: NULL Rate -->
                         <div class="stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 rounded-2xl bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-inner">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                                <div class="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                                 </div>
-                                <span class="bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Primary</span>
+                                <span class="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">Nulls</span>
                             </div>
-                            <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Dominant Error</p>
-                            <h3 class="text-lg font-black text-slate-800 dark:text-white truncate" title="{dominant_error}">{dominant_error_short}</h3>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">NULL Issue Rate</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{null_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
                         </div>
-                    </div>
+
+                        <!-- Bento Card 7: Dominant Error (wide) -->
+                        <div class="kpi-bento-large stagger-card kpi-card glass-card p-6 rounded-3xl hover:border-indigo-500/50 dark:hover:border-indigo-400/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 transform hover:-translate-y-1.5">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="w-11 h-11 rounded-2xl bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-inner">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                                </div>
+                                <span class="bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">Primary</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Dominant Error Type</p>
+                            <h3 class="text-2xl font-black text-slate-800 dark:text-white truncate" title="{dominant_error}">{dominant_error}</h3>
+                        </div>
+                        </div>
 
                     </section>
 
                     <!-- Analytics Section with Tabs (v3.0) -->
                     <div id="charts" class="bg-white dark:bg-[#161b22] rounded-[2rem] border border-slate-200 dark:border-slate-800 hover:border-indigo-500/50 dark:hover:border-indigo-400/50 shadow-sm transition-all duration-300 overflow-hidden snap-section">
                         <!-- Tab Header -->
-                        <div role="tablist" class="px-8 pt-6 pb-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/50">
-                            <button role="tab" aria-selected="true" aria-controls="tab-overview" onclick="switchTab('tab-overview')" class="tab-btn active px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-overview">
-                                <span class="flex items-center gap-2">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                                    Overview Charts
-                                </span>
-                            </button>
-                            <button role="tab" aria-selected="false" aria-controls="tab-distribution" onclick="switchTab('tab-distribution')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-distribution">
-                                <span class="flex items-center gap-2">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-                                    Error Distribution
-                                </span>
-                            </button>
-                            <button role="tab" aria-selected="false" aria-controls="tab-orphans" onclick="switchTab('tab-orphans')" class="tab-btn px-5 py-3 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-orphans">
-                                <span class="flex items-center gap-2">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                    Orphaned Records
-                                </span>
-                            </button>
+                        <div class="px-8 pt-6 pb-5 flex items-center border-b border-slate-100 dark:border-slate-800/50">
+                            <div class="tab-btn-wrap inline-flex relative" role="tablist" aria-label="Analytics views">
+                                <div id="tab-indicator" class="tab-indicator" aria-hidden="true"></div>
+                                <button role="tab" aria-selected="true" aria-controls="tab-overview" onclick="switchTab('tab-overview')" class="tab-btn active px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-overview">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                        Overview Charts
+                                    </span>
+                                </button>
+                                <button role="tab" aria-selected="false" aria-controls="tab-distribution" onclick="switchTab('tab-distribution')" class="tab-btn px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-distribution">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                                        Error Distribution
+                                    </span>
+                                </button>
+                                <button role="tab" aria-selected="false" aria-controls="tab-orphans" onclick="switchTab('tab-orphans')" class="tab-btn px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl" data-tab="tab-orphans">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                        Orphaned Records
+                                    </span>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Tab 1: Overview Charts -->
@@ -2106,6 +2440,18 @@ def generate_html(ctx):
             <button id="scrollTopBtn" aria-label="Scroll to top" onclick="document.getElementById('scroll-container').scrollTo({{top:0,behavior:'smooth'}})" class="fixed bottom-8 right-8 w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-xl shadow-indigo-500/30 flex items-center justify-center transition-all duration-300 translate-y-24 opacity-0 z-50 group">
                 <svg class="w-6 h-6 group-hover:-translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
             </button>
+
+            <!-- Feature #1: Command Palette (Ctrl+K) -->
+            <div id="cmd-palette" class="cmd-palette-overlay" role="dialog" aria-modal="true" aria-label="Command palette" aria-hidden="true">
+                <div class="cmd-palette-modal" onclick="event.stopPropagation()">
+                    <div class="cmd-palette-input-wrap">
+                        <svg class="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <input type="text" id="cmd-palette-input" class="cmd-palette-input" placeholder="Search columns, sections, actions..." autocomplete="off" spellcheck="false" />
+                        <span class="cmd-palette-kbd">Esc</span>
+                    </div>
+                    <div id="cmd-palette-results" class="cmd-palette-results" role="listbox"></div>
+                </div>
+            </div>
         </main>
 
         <script>
@@ -2918,10 +3264,13 @@ def generate_html(ctx):
 
             function toggleSidebar() {{
                 const sidebar = document.getElementById('sidebar');
+                const contentArea = document.querySelector('.dock-content-area');
                 sidebar.classList.toggle('collapsed');
+                if (contentArea) contentArea.classList.toggle('collapsed');
                 const isCollapsed = sidebar.classList.contains('collapsed');
                 localStorage.sidebarCollapsed = isCollapsed;
                 updateArrow(isCollapsed);
+                setTimeout(moveTabIndicator, 350);
             }}
 
             // Crosshair Hover Highlighting (Column + Row)
@@ -3011,9 +3360,12 @@ def generate_html(ctx):
                 const isCollapsed = localStorage.sidebarCollapsed === 'true';
                 if (isCollapsed) {{
                     document.getElementById('sidebar').classList.add('collapsed');
+                    const contentArea = document.querySelector('.dock-content-area');
+                    if (contentArea) contentArea.classList.add('collapsed');
                 }}
                 updateArrow(isCollapsed);
                 animateCounters();
+                moveTabIndicator();
                 refreshZebra();
                 updateChartColors();
 
@@ -3137,6 +3489,268 @@ def generate_html(ctx):
                     showToast('Matrix data copied to clipboard');
                 }});
             }}
+
+            // =========================================
+            // v4.1: Modern UI/UX Features
+            // =========================================
+
+            // === Feature #1: Command Palette (Ctrl+K) ===
+            const cmdPalette = document.getElementById('cmd-palette');
+            const cmdInput = document.getElementById('cmd-palette-input');
+            const cmdResults = document.getElementById('cmd-palette-results');
+
+            function getCmdItems() {{
+                const items = [];
+                items.push({{ section: 'Navigation', label: 'Go to Overview', keywords: 'kpi dashboard', action: () => navigateToSection('kpi-section') }});
+                items.push({{ section: 'Navigation', label: 'Go to Analytics', keywords: 'charts distribution', action: () => navigateToSection('charts') }});
+                items.push({{ section: 'Navigation', label: 'Go to Integrity Matrix', keywords: 'matrix table', action: () => navigateToSection('matrix') }});
+                items.push({{ section: 'Navigation', label: 'Go to Test Queries', keywords: 'sql queries', action: () => navigateToSection('test-queries') }});
+                items.push({{ section: 'Actions', label: 'Download Excel Report', keywords: 'export download', action: () => downloadExcelReport() }});
+                items.push({{ section: 'Actions', label: 'Export Matrix as CSV', keywords: 'export csv', action: () => exportCSV() }});
+                items.push({{ section: 'Actions', label: 'Copy Matrix to Clipboard', keywords: 'copy clipboard', action: () => copyToClipboard() }});
+                items.push({{ section: 'Actions', label: 'Toggle Dark Mode', keywords: 'theme dark light mode', action: () => toggleTheme() }});
+                items.push({{ section: 'Actions', label: 'Expand All Rows', keywords: 'accordion expand', action: () => expandAllAccordions() }});
+                items.push({{ section: 'Actions', label: 'Collapse All Rows', keywords: 'accordion collapse', action: () => collapseAllAccordions() }});
+
+                // Add columns from the matrix
+                const rows = document.querySelectorAll('.matrix-row');
+                rows.forEach((row) => {{
+                    const colName = row.querySelector('.col-name span:last-child') ? row.querySelector('.col-name span:last-child').innerText.trim() : '';
+                    if (colName) {{
+                        items.push({{
+                            section: 'Columns',
+                            label: colName,
+                            keywords: 'column field',
+                            action: () => {{
+                                const accId = row.getAttribute('onclick').match(/'([^']+)'/)[1];
+                                navigateToSection('matrix');
+                                setTimeout(() => {{
+                                    if (row.classList.contains('hidden') || row.style.display === 'none') {{
+                                        const matrixSearchInput = document.getElementById('matrixSearch');
+                                        if (matrixSearchInput) {{
+                                            matrixSearchInput.value = colName;
+                                            matrixSearchInput.dispatchEvent(new Event('input'));
+                                            setTimeout(() => {{
+                                                const visibleRow = Array.from(document.querySelectorAll('.matrix-row')).find(r => {{
+                                                    const cn = r.querySelector('.col-name span:last-child');
+                                                    return cn && cn.innerText.trim() === colName;
+                                                }});
+                                                if (visibleRow) visibleRow.click();
+                                            }}, 200);
+                                        }}
+                                    }} else {{
+                                        row.click();
+                                    }}
+                                }}, 600);
+                                showToast('Jumped to column: ' + colName);
+                            }}
+                        }});
+                    }}
+                }});
+                return items;
+            }}
+
+            function navigateToSection(sectionId) {{
+                const targetEl = document.getElementById(sectionId);
+                if (!targetEl) return;
+                const scrollContainer = document.getElementById('scroll-container');
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const targetRect = targetEl.getBoundingClientRect();
+                const targetTop = targetRect.top - containerRect.top + scrollContainer.scrollTop;
+                scrollContainer.scrollTo({{ top: targetTop - 16, behavior: 'smooth' }});
+                document.querySelectorAll('.dock-nav-item').forEach(l => l.classList.remove('nav-active-floating'));
+                const navLink = document.querySelector(`[data-nav-id="${{sectionId}}"]`);
+                if (navLink) navLink.classList.add('nav-active-floating');
+            }}
+
+            let cmdSelectedIndex = 0;
+            let cmdFilteredItems = [];
+
+            function renderCmdResults(items) {{
+                if (!items || items.length === 0) {{
+                    cmdResults.innerHTML = '<div class="cmd-palette-empty">No matches found</div>';
+                    cmdFilteredItems = [];
+                    return;
+                }}
+                cmdFilteredItems = items;
+                if (cmdSelectedIndex >= items.length) cmdSelectedIndex = 0;
+                if (cmdSelectedIndex < 0) cmdSelectedIndex = items.length - 1;
+
+                let lastSection = '';
+                let html = '';
+                items.forEach((item, idx) => {{
+                    if (item.section !== lastSection) {{
+                        html += '<div class="cmd-palette-section-label">' + item.section + '</div>';
+                        lastSection = item.section;
+                    }}
+                    const isSelected = idx === cmdSelectedIndex ? 'selected' : '';
+                    html += '<div class="cmd-palette-item ' + isSelected + '" data-idx="' + idx + '" role="option" aria-selected="' + (idx === cmdSelectedIndex) + '">';
+                    html += '<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>';
+                    html += '<span class="flex-1">' + item.label + '</span>';
+                    html += '</div>';
+                }});
+                cmdResults.innerHTML = html;
+                cmdResults.querySelectorAll('.cmd-palette-item').forEach(el => {{
+                    el.addEventListener('click', () => {{
+                        const idx = parseInt(el.getAttribute('data-idx'));
+                        cmdFilteredItems[idx].action();
+                        closeCommandPalette();
+                    }});
+                    el.addEventListener('mouseenter', () => {{
+                        cmdSelectedIndex = parseInt(el.getAttribute('data-idx'));
+                        cmdResults.querySelectorAll('.cmd-palette-item').forEach((e, i) => {{
+                            e.classList.toggle('selected', i === cmdSelectedIndex);
+                        }});
+                    }});
+                }});
+            }}
+
+            function openCommandPalette() {{
+                cmdPalette.classList.add('open');
+                cmdPalette.setAttribute('aria-hidden', 'false');
+                cmdInput.value = '';
+                cmdSelectedIndex = 0;
+                renderCmdResults(getCmdItems());
+                setTimeout(() => cmdInput.focus(), 50);
+            }}
+
+            function closeCommandPalette() {{
+                cmdPalette.classList.remove('open');
+                cmdPalette.setAttribute('aria-hidden', 'true');
+                cmdInput.value = '';
+            }}
+
+            cmdPalette.addEventListener('click', (e) => {{
+                if (e.target === cmdPalette) closeCommandPalette();
+            }});
+
+            document.addEventListener('keydown', (e) => {{
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {{
+                    e.preventDefault();
+                    if (cmdPalette.classList.contains('open')) closeCommandPalette();
+                    else openCommandPalette();
+                }}
+                if (e.key === 'Escape' && cmdPalette.classList.contains('open')) {{
+                    e.preventDefault();
+                    closeCommandPalette();
+                }}
+            }});
+
+            cmdInput.addEventListener('input', (e) => {{
+                const term = e.target.value.toLowerCase();
+                cmdSelectedIndex = 0;
+                const all = getCmdItems();
+                if (!term) {{
+                    renderCmdResults(all);
+                    return;
+                }}
+                const filtered = all.filter(item =>
+                    item.label.toLowerCase().includes(term) ||
+                    (item.keywords && item.keywords.toLowerCase().includes(term))
+                );
+                renderCmdResults(filtered);
+            }});
+
+            cmdInput.addEventListener('keydown', (e) => {{
+                if (e.key === 'ArrowDown') {{
+                    e.preventDefault();
+                    cmdSelectedIndex++;
+                    renderCmdResults(cmdFilteredItems);
+                }} else if (e.key === 'ArrowUp') {{
+                    e.preventDefault();
+                    cmdSelectedIndex--;
+                    renderCmdResults(cmdFilteredItems);
+                }} else if (e.key === 'Enter') {{
+                    e.preventDefault();
+                    if (cmdFilteredItems[cmdSelectedIndex]) {{
+                        cmdFilteredItems[cmdSelectedIndex].action();
+                        closeCommandPalette();
+                    }}
+                }}
+            }});
+
+            // === Feature #2: Bento Grid — Animate pass rate bar ===
+            const passRateBar = document.getElementById('passRateBar');
+            if (passRateBar) {{
+                setTimeout(() => {{
+                    passRateBar.style.width = '{pass_rate}%';
+                }}, 800);
+            }}
+
+            // === Feature #3: Sliding Tab Indicator ===
+            function moveTabIndicator() {{
+                const indicator = document.getElementById('tab-indicator');
+                if (!indicator) return;
+                const activeBtn = document.querySelector('.tab-btn-wrap .tab-btn.active');
+                if (!activeBtn) return;
+                const wrap = activeBtn.parentElement;
+                const wrapRect = wrap.getBoundingClientRect();
+                const btnRect = activeBtn.getBoundingClientRect();
+                const offsetLeft = btnRect.left - wrapRect.left;
+                indicator.style.width = btnRect.width + 'px';
+                indicator.style.transform = 'translateX(' + offsetLeft + 'px)';
+            }}
+            setTimeout(moveTabIndicator, 100);
+            window.addEventListener('resize', moveTabIndicator);
+
+            // Wrap existing switchTab to also move indicator + animate
+            const _origSwitchTab = switchTab;
+            switchTab = function(tabId) {{
+                _origSwitchTab(tabId);
+                setTimeout(moveTabIndicator, 10);
+            }};
+
+            // === Feature #4: Theme Transition with Ripple ===
+            const _origToggleTheme = toggleTheme;
+            toggleTheme = function() {{
+                const btn = document.getElementById('themeToggle');
+                if (btn) {{
+                    const rect = btn.getBoundingClientRect();
+                    const ripple = document.createElement('div');
+                    ripple.className = 'theme-ripple';
+                    const size = Math.max(window.innerWidth, window.innerHeight) * 2;
+                    ripple.style.width = ripple.style.height = size + 'px';
+                    ripple.style.left = (rect.left + rect.width / 2 - size / 2) + 'px';
+                    ripple.style.top = (rect.top + rect.height / 2 - size / 2) + 'px';
+                    document.body.appendChild(ripple);
+                    document.documentElement.classList.add('theme-transitioning');
+                    requestAnimationFrame(() => ripple.classList.add('expand'));
+                    setTimeout(() => {{
+                        document.documentElement.classList.remove('theme-transitioning');
+                        ripple.remove();
+                    }}, 750);
+                }}
+                _origToggleTheme();
+            }};
+
+            // === Feature #5: Floating Dock — Click outside mobile to close ===
+            function isMobileViewport() {{
+                return window.innerWidth <= 768;
+            }}
+
+            // Dock active state syncing with scroll-spy
+            const _origScrollHandler = scrollContainer.onscroll;
+            scrollContainer.addEventListener('scroll', () => {{
+                if (!isMobileViewport()) {{
+                    const sections = ['kpi-section', 'charts', 'matrix', 'test-queries'];
+                    let currentSection = sections[0];
+                    const containerRect = scrollContainer.getBoundingClientRect();
+                    const threshold = containerRect.top + 100;
+                    sections.forEach(id => {{
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        const rect = el.getBoundingClientRect();
+                        if (rect.top <= threshold && rect.bottom > threshold) {{
+                            currentSection = id;
+                        }}
+                    }});
+                    document.querySelectorAll('.dock-nav-item').forEach(l => l.classList.remove('nav-active-floating'));
+                    const navLink = document.querySelector('[data-nav-id="' + currentSection + '"]');
+                    if (navLink) navLink.classList.add('nav-active-floating');
+                }}
+            }});
+
+            // Add data-nav-id to dock nav items for syncing (already in HTML)
 
         </script>
     </body>
