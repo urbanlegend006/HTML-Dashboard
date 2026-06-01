@@ -950,6 +950,28 @@ def generate_html(ctx):
             .kpi-card:hover::after {{
                 opacity: 1;
             }}
+            .kpi-counter.kpi-skeleton {{
+                width: 8.5rem;
+                height: 2.25rem;
+                border-radius: 0.75rem;
+                color: transparent !important;
+                background: linear-gradient(90deg, rgba(226,232,240,0.9) 25%, rgba(199,210,254,0.65) 37%, rgba(226,232,240,0.9) 63%);
+                background-size: 400% 100%;
+                animation: kpiSkeletonShimmer 1.4s ease-in-out infinite;
+            }}
+            .dark .kpi-counter.kpi-skeleton {{
+                background: linear-gradient(90deg, rgba(30,41,59,0.95) 25%, rgba(79,70,229,0.35) 37%, rgba(30,41,59,0.95) 63%);
+                background-size: 400% 100%;
+            }}
+            @keyframes kpiSkeletonShimmer {{
+                0% {{ background-position: 100% 0; }}
+                100% {{ background-position: 0 0; }}
+            }}
+            @media (prefers-reduced-motion: reduce) {{
+                .kpi-counter.kpi-skeleton {{
+                    animation: none;
+                }}
+            }}
 
             @keyframes slideDown {{
                 from {{ max-height: 0; opacity: 0; }}
@@ -1516,7 +1538,7 @@ def generate_html(ctx):
                                 <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Dataset</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Total Source Rows</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{total_rows}">0</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{total_rows}" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- Matches -->
@@ -1528,7 +1550,7 @@ def generate_html(ctx):
                                 <span class="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">+{match_pct}%</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Identical Matches</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{matched_count}">0</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{matched_count}" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- Differences -->
@@ -1540,7 +1562,7 @@ def generate_html(ctx):
                                 <span class="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">! {diff_pct}%</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Rows with Diffs</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{diff_row_count}">0</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{diff_row_count}" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- Pass Rate -->
@@ -1552,7 +1574,7 @@ def generate_html(ctx):
                                 <span class="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Target 100%</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Overall Pass Rate</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{pass_rate}" data-suffix="%">0%</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{pass_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
                         </div>
                     </div>
 
@@ -1567,7 +1589,7 @@ def generate_html(ctx):
                                 <span class="bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Scope</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Affected Columns</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{affected_columns}">0</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{affected_columns}" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- Critical Fields -->
@@ -1579,7 +1601,7 @@ def generate_html(ctx):
                                 <span class="bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Alert</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Critical Fields</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{critical_fields}">0</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{critical_fields}" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- NULL Rate -->
@@ -1591,7 +1613,7 @@ def generate_html(ctx):
                                 <span class="bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[11px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wide">Nulls</span>
                             </div>
                             <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">NULL Issue Rate</p>
-                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter" data-target="{null_rate}" data-suffix="%">0%</h3>
+                            <h3 class="text-3xl font-black text-slate-800 dark:text-white kpi-counter kpi-skeleton" data-target="{null_rate}" data-suffix="%" aria-label="Loading KPI value"></h3>
                         </div>
 
                         <!-- Dominant Error -->
@@ -2345,6 +2367,22 @@ def generate_html(ctx):
                 counters.forEach(counter => {{
                     const target = parseFloat(counter.getAttribute('data-target'));
                     const suffix = counter.getAttribute('data-suffix') || '';
+                    const formatValue = (value) => {{
+                        if (Number.isInteger(target)) {{
+                            return Math.floor(value).toLocaleString() + suffix;
+                        }}
+                        return value.toFixed(1) + suffix;
+                    }};
+
+                    counter.classList.remove('kpi-skeleton');
+                    counter.removeAttribute('aria-label');
+                    counter.innerText = suffix ? `0${{suffix}}` : '0';
+
+                    if (!Number.isFinite(target)) {{
+                        counter.innerText = suffix ? `0${{suffix}}` : '0';
+                        return;
+                    }}
+
                     const duration = 1500;
                     const startTime = performance.now();
                     
@@ -2353,14 +2391,13 @@ def generate_html(ctx):
                         const progress = Math.min(elapsed / duration, 1);
                         const easeOut = 1 - Math.pow(1 - progress, 3);
                         const current = easeOut * target;
-                        
-                        if (target % 1 === 0) {{
-                            counter.innerText = Math.floor(current).toLocaleString() + suffix;
+
+                        if (progress < 1) {{
+                            counter.innerText = formatValue(current);
+                            requestAnimationFrame(update);
                         }} else {{
-                            counter.innerText = current.toFixed(1) + suffix;
+                            counter.innerText = formatValue(target);
                         }}
-                        
-                        if (progress < 1) requestAnimationFrame(update);
                     }}
                     requestAnimationFrame(update);
                 }});

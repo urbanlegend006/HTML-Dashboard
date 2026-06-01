@@ -28,6 +28,33 @@ def test_dashboard_loads_correctly(page: Page, dashboard_url: str):
     # Check KPIs
     expect(page.locator("text=Total Source Rows")).to_be_visible()
     expect(page.locator("text=Identical Matches")).to_be_visible()
+
+
+def test_kpi_counters_render_skeleton_before_animation(dashboard_url: str):
+    html_file = dashboard_url.replace("file:///", "").replace("/", os.sep)
+    with open(html_file, encoding="utf-8") as f:
+        html = f.read()
+
+    assert html.count("kpi-counter kpi-skeleton") == 7
+    assert 'aria-label="Loading KPI value"' in html
+    assert 'kpi-counter" data-target' not in html
+    assert 'kpi-counter kpi-skeleton" data-target="{total_rows}"' not in html
+
+
+def test_kpi_counters_animate_from_skeleton_to_values(page: Page, dashboard_url: str):
+    page.goto(dashboard_url)
+
+    counters = page.locator(".kpi-counter")
+    expect(counters).to_have_count(7)
+    expect(page.locator(".kpi-counter.kpi-skeleton")).to_have_count(0, timeout=3000)
+
+    expect(counters.nth(0)).to_have_text("1,624,931", timeout=3000)
+    expect(counters.nth(1)).to_have_text("1,618,381")
+    expect(counters.nth(2)).to_have_text("6,550")
+    expect(counters.nth(3)).to_have_text("99.6%")
+    expect(counters.nth(4)).to_have_text("12")
+    null_rate_target = counters.nth(6).get_attribute("data-target")
+    expect(counters.nth(6)).to_have_text(f"{float(null_rate_target):.1f}%")
     
 def test_dark_mode_toggle(page: Page, dashboard_url: str):
     page.goto(dashboard_url)
