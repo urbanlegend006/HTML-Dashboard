@@ -1,25 +1,27 @@
-import os
-import pytest
-from playwright.sync_api import Page, expect
-import time
+import sys
 import math
+import tempfile
+import pytest
+from pathlib import Path
+from playwright.sync_api import Page, expect
+
+current_dir = Path(__file__).resolve().parent
+project_root = current_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+import tosca_di_report_dashboard
+import openpyxl
+
+HTML_FILE = project_root / "output" / "tosca_enterprise_report.html"
+
 
 @pytest.fixture(scope="session")
 def dashboard_url():
-    # Use absolute file path for the dashboard
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    html_file = os.path.join(project_root, "output", "tosca_enterprise_report.html")
-    # Regenerate the HTML just in case
-    import sys
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    import tosca_di_report_dashboard
     tosca_di_report_dashboard.generate_unified_dashboard(
-        "tosca_report.db", 
-        html_file
+        "tosca_report.db",
+        str(HTML_FILE)
     )
-    return f"file:///{html_file.replace(chr(92), '/')}"
+    return HTML_FILE.as_uri()
 
 def test_dashboard_loads_correctly(page: Page, dashboard_url: str):
     page.goto(dashboard_url)
@@ -31,9 +33,7 @@ def test_dashboard_loads_correctly(page: Page, dashboard_url: str):
 
 
 def test_kpi_counters_render_skeleton_before_animation(dashboard_url: str):
-    html_file = dashboard_url.replace("file:///", "").replace("/", os.sep)
-    with open(html_file, encoding="utf-8") as f:
-        html = f.read()
+    html = HTML_FILE.read_text(encoding="utf-8")
 
     assert html.count("kpi-counter kpi-skeleton") == 7
     assert 'aria-label="Loading KPI value"' in html
@@ -392,8 +392,6 @@ def test_excel_report_content(page: Page, dashboard_url: str):
     download = download_info.value
     assert download.suggested_filename == "tosca_integrity_report_full.xlsx"
 
-    import tempfile, os
-    import openpyxl
     tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
     tmp.close()
     try:
@@ -425,7 +423,7 @@ def test_excel_report_content(page: Page, dashboard_url: str):
         assert ws_tn.cell(1, 1).value == "Row Key"
         wb.close()
     finally:
-        os.unlink(tmp.name)
+        Path(tmp.name).unlink()
 
 
 def test_mismatch_type_dropdown_filter(page: Page, dashboard_url: str):
@@ -545,8 +543,6 @@ def test_matrix_table_layout_and_widths(page: Page, dashboard_url: str):
     # Pct column
     pct_width = page.eval_on_selector("#matrixTable th:nth-child(18)", "el => getComputedStyle(el).width")
     assert math.isclose(float(pct_width.replace("px", "")), 73.0, abs_tol=5.0)
-
-import math
 
 def test_matrix_scrolling(page: Page, dashboard_url: str):
     page.goto(dashboard_url)

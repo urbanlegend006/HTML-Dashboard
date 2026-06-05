@@ -1,16 +1,20 @@
 import sqlite3
 import json
-import os
 from collections import Counter
+from types import MappingProxyType
+from pathlib import Path
 import re
 import html
-import hashlib
-import time
+import sys
 
-__version__ = "4.0"
+__version__ = "4.1"
 
+_SQL_STATEMENTS = frozenset({'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'MERGE', 'WITH', 'DECLARE', 'SET', 'EXEC', 'EXECUTE'})
+_SQL_CLAUSES = frozenset({'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'ON', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'UNION', 'ALL', 'DISTINCT', 'INTO', 'VALUES', 'TOP', 'OFFSET', 'FETCH', 'NEXT', 'ROWS', 'ONLY'})
+_SQL_OPERATORS = frozenset({'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS', 'NULL', 'AS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'EXISTS', 'ASC', 'DESC', 'OVER', 'PARTITION', 'NULLS', 'FIRST', 'LAST'})
+_SQL_FUNCTIONS = frozenset({'COUNT', 'SUM', 'MAX', 'MIN', 'AVG', 'COALESCE', 'CAST', 'CONVERT', 'ISNULL', 'NVL', 'TRIM', 'LTRIM', 'RTRIM', 'UPPER', 'LOWER', 'SUBSTRING', 'LEN', 'LENGTH', 'REPLACE', 'CONCAT', 'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'LAG', 'LEAD', 'GETDATE', 'SYSDATE', 'DATEADD', 'DATEDIFF', 'TO_DATE', 'TO_CHAR', 'TO_NUMBER', 'DECODE', 'NVL2', 'LISTAGG', 'ROUND', 'FLOOR', 'CEIL', 'ABS', 'MOD'})
 
-def inline_diff(source, target):
+def inline_diff(source: str | None, target: str | None) -> tuple[str, str]:
     """Character-level diff highlighting using LCS. Returns (src_html, tgt_html) with <mark> tags."""
     if source is None or target is None:
         return (html.escape(str(source)) if source else "", html.escape(str(target)) if target else "")
@@ -45,7 +49,7 @@ def inline_diff(source, target):
     # Build source HTML
     src_parts = []
     prev_si = 0
-    lcs_s_indices = set(p[0] for p in lcs)
+    lcs_s_indices = {p[0] for p in lcs}
     run_del = []
     for ci in range(m):
         if ci in lcs_s_indices:
@@ -59,7 +63,7 @@ def inline_diff(source, target):
         src_parts.append('<mark class="diff-del">' + html.escape(''.join(run_del)) + '</mark>')
     # Build target HTML
     tgt_parts = []
-    lcs_t_indices = set(p[1] for p in lcs)
+    lcs_t_indices = {p[1] for p in lcs}
     run_add = []
     for ci in range(n):
         if ci in lcs_t_indices:
@@ -74,29 +78,38 @@ def inline_diff(source, target):
     return (''.join(src_parts), ''.join(tgt_parts))
 
 
-def highlight_sql(sql_text):
+def _classify_sql_token(tval: str) -> str:
+    upper = tval.upper()
+    if upper in _SQL_STATEMENTS:
+        return f'<span class="sql-keyword">{html.escape(tval)}</span>'
+    if upper in _SQL_CLAUSES:
+        return f'<span class="sql-clause">{html.escape(tval)}</span>'
+    if upper in _SQL_OPERATORS:
+        return f'<span class="sql-operator">{html.escape(tval)}</span>'
+    if upper in _SQL_FUNCTIONS:
+        return f'<span class="sql-function">{html.escape(tval)}</span>'
+    return html.escape(tval)
+
+
+def highlight_sql(sql_text: str | None) -> str:
     """Add syntax highlighting spans to SQL text. Returns HTML string."""
     if not sql_text or sql_text == '0':
         return html.escape(str(sql_text))
     text = str(sql_text)
-    # Tokenize: preserve strings, comments, and whitespace
-    tokens = []
+    parts = []
     i = 0
     while i < len(text):
-        # Single-line comment
         if text[i:i+2] == '--':
             end = text.find('\n', i)
             if end == -1: end = len(text)
-            tokens.append(('comment', text[i:end]))
+            parts.append(f'<span class="sql-comment">{html.escape(text[i:end])}</span>')
             i = end
-        # Multi-line comment
         elif text[i:i+2] == '/*':
             end = text.find('*/', i)
             if end == -1: end = len(text)
             else: end += 2
-            tokens.append(('comment', text[i:end]))
+            parts.append(f'<span class="sql-comment">{html.escape(text[i:end])}</span>')
             i = end
-        # String literal
         elif text[i] == "'":
             j = i + 1
             while j < len(text):
@@ -108,56 +121,27 @@ def highlight_sql(sql_text):
                         break
                 else:
                     j += 1
-            tokens.append(('string', text[i:j]))
+            parts.append(f'<span class="sql-string">{html.escape(text[i:j])}</span>')
             i = j
-        # Word
         elif text[i].isalpha() or text[i] == '_':
             j = i
             while j < len(text) and (text[j].isalnum() or text[j] == '_'):
                 j += 1
-            tokens.append(('word', text[i:j]))
+            parts.append(_classify_sql_token(text[i:j]))
             i = j
-        # Number
         elif text[i].isdigit() or (text[i] == '.' and i + 1 < len(text) and text[i+1].isdigit()):
             j = i
             while j < len(text) and (text[j].isdigit() or text[j] == '.'):
                 j += 1
-            tokens.append(('number', text[i:j]))
+            parts.append(f'<span class="sql-number">{html.escape(text[i:j])}</span>')
             i = j
         else:
-            tokens.append(('other', text[i]))
+            parts.append(html.escape(text[i]))
             i += 1
-    # Classify words
-    statements = {'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'MERGE', 'WITH', 'DECLARE', 'SET', 'EXEC', 'EXECUTE'}
-    clauses = {'FROM', 'WHERE', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'ON', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'UNION', 'ALL', 'DISTINCT', 'INTO', 'VALUES', 'TOP', 'OFFSET', 'FETCH', 'NEXT', 'ROWS', 'ONLY'}
-    operators = {'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS', 'NULL', 'AS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'EXISTS', 'ASC', 'DESC', 'OVER', 'PARTITION', 'NULLS', 'FIRST', 'LAST'}
-    functions = {'COUNT', 'SUM', 'MAX', 'MIN', 'AVG', 'COALESCE', 'CAST', 'CONVERT', 'ISNULL', 'NVL', 'TRIM', 'LTRIM', 'RTRIM', 'UPPER', 'LOWER', 'SUBSTRING', 'LEN', 'LENGTH', 'REPLACE', 'CONCAT', 'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'LAG', 'LEAD', 'GETDATE', 'SYSDATE', 'DATEADD', 'DATEDIFF', 'TO_DATE', 'TO_CHAR', 'TO_NUMBER', 'DECODE', 'NVL2', 'LISTAGG', 'ROUND', 'FLOOR', 'CEIL', 'ABS', 'MOD'}
-    parts = []
-    for ttype, tval in tokens:
-        if ttype == 'comment':
-            parts.append(f'<span class="sql-comment">{html.escape(tval)}</span>')
-        elif ttype == 'string':
-            parts.append(f'<span class="sql-string">{html.escape(tval)}</span>')
-        elif ttype == 'number':
-            parts.append(f'<span class="sql-number">{html.escape(tval)}</span>')
-        elif ttype == 'word':
-            upper = tval.upper()
-            if upper in statements:
-                parts.append(f'<span class="sql-keyword">{html.escape(tval)}</span>')
-            elif upper in clauses:
-                parts.append(f'<span class="sql-clause">{html.escape(tval)}</span>')
-            elif upper in operators:
-                parts.append(f'<span class="sql-operator">{html.escape(tval)}</span>')
-            elif upper in functions:
-                parts.append(f'<span class="sql-function">{html.escape(tval)}</span>')
-            else:
-                parts.append(html.escape(tval))
-        else:
-            parts.append(html.escape(tval))
     return ''.join(parts)
 
 
-ERROR_TYPES = [
+ERROR_TYPES = (
     "Source Value is NULL",
     "Target Value is NULL",
     "Null Equivalent Mismatch",
@@ -173,9 +157,9 @@ ERROR_TYPES = [
     "Date/Timestamp Mismatch",
     "Numeric Data Mismatch",
     "String Data Mismatch"
-]
+)
 
-COLOR_MAP = {
+COLOR_MAP = MappingProxyType({
     "Source Value is NULL": "#a855f7", 
     "Target Value is NULL": "#ec4899", 
     "Null Equivalent Mismatch": "#d946ef", 
@@ -191,41 +175,83 @@ COLOR_MAP = {
     "Date/Timestamp Mismatch": "#eab308", 
     "Numeric Data Mismatch": "#06b6d4", 
     "String Data Mismatch": "#f97316"
-}
+})
 
-def is_date_like(val):
-    date_patterns = [
-        r'\d{4}-\d{2}-\d{2}',
-        r'\d{2}/\d{2}/\d{4}',
-        r'\d{2}-\d{2}-\d{4}'
-    ]
-    return any(re.match(p, str(val)) for p in date_patterns)
+_DATE_PATTERNS = [re.compile(p) for p in [r'\d{4}-\d{2}-\d{2}', r'\d{2}/\d{2}/\d{4}', r'\d{2}-\d{2}-\d{4}']]
 
-def format_val_html(val, placeholder=""):
+def is_date_like(val: str) -> bool:
+    return any(p.match(str(val)) for p in _DATE_PATTERNS)
+
+def _json_safe(obj) -> str:
+    return json.dumps(obj).replace('</', '<\\/')
+
+
+def format_val_html(val: str | None, placeholder: str = "") -> str:
     if val is None or str(val) == '' or str(val).lower() == 'none':
         return ""
     return html.escape(str(val))
 
 
-def get_mismatch_type(s_val, t_val):
+NULL_EQUIVALENT_VALS = frozenset({'n/a', 'na', 'unknown', '0', '-1'})
+NULL_LIKE_VALS = frozenset({'none', 'null', ''})
+BOOL_VALS = frozenset({'true', 'false', 'y', 'n', 'yes', 'no', '1', '0'})
+_ROW_KEY_COLORS = [
+    'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+    'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
+    'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+    'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+]
+
+
+def _check_null_mismatch(s_val: str | None, t_val: str | None, s_lower: str, t_lower: str) -> str | None:
+    s_is_null = s_val is None or s_lower in NULL_LIKE_VALS
+    t_is_null = t_val is None or t_lower in NULL_LIKE_VALS
+    if s_is_null and not t_is_null:
+        return "Null Equivalent Mismatch" if t_lower in NULL_EQUIVALENT_VALS else "Source Value is NULL"
+    if t_is_null and not s_is_null:
+        return "Null Equivalent Mismatch" if s_lower in NULL_EQUIVALENT_VALS else "Target Value is NULL"
+    if s_is_null and t_is_null:
+        return None
+    return None
+
+
+def _check_numeric_mismatch(s_str: str, t_str: str) -> tuple[str | None, bool, float | None, float | None]:
+    s_is_num = False
+    t_is_num = False
+    s_float = None
+    t_float = None
+    try:
+        s_float = float(s_str.replace(',', ''))
+        s_is_num = True
+    except (ValueError, TypeError):
+        pass
+    try:
+        t_float = float(t_str.replace(',', ''))
+        t_is_num = True
+    except (ValueError, TypeError):
+        pass
+    if not (s_is_num and t_is_num):
+        return None, False, None, None
+    if s_float == t_float:
+        return "Type Coercion / Formatting", True, s_float, t_float
+    s_decimals = len(s_str.split('.')[-1]) if '.' in s_str else 0
+    t_decimals = len(t_str.split('.')[-1]) if '.' in t_str else 0
+    if s_decimals != t_decimals:
+        min_dec = min(s_decimals, t_decimals)
+        if round(s_float, min_dec) == round(t_float, min_dec):
+            return "Precision / Rounding", True, s_float, t_float
+    return None, True, s_float, t_float
+
+
+def get_mismatch_type(s_val: str | None, t_val: str | None) -> str | None:
     s_str = str(s_val) if s_val is not None else ""
     t_str = str(t_val) if t_val is not None else ""
     s_lower = s_str.lower()
     t_lower = t_str.lower()
 
-    s_is_null = s_val is None or s_lower in ['none', 'null', '']
-    t_is_null = t_val is None or t_lower in ['none', 'null', '']
-
-    if s_is_null and not t_is_null:
-        if t_lower in ['n/a', 'na', 'unknown', '0', '-1']:
-            return "Null Equivalent Mismatch"
-        return "Source Value is NULL"
-    if t_is_null and not s_is_null:
-        if s_lower in ['n/a', 'na', 'unknown', '0', '-1']:
-            return "Null Equivalent Mismatch"
-        return "Target Value is NULL"
-    if s_is_null and t_is_null:
-        return None
+    null_result = _check_null_mismatch(s_val, t_val, s_lower, t_lower)
+    if null_result is not None:
+        return null_result
 
     if s_str.strip() == t_str.strip():
         return "Whitespace Mismatch"
@@ -237,47 +263,69 @@ def get_mismatch_type(s_val, t_val):
     if s_clean == t_clean and s_clean != "":
         return "Encoding / Special Char Mismatch"
 
-    s_is_num = False
-    t_is_num = False
-    s_float = None
-    t_float = None
-    try:
-        s_float = float(s_str.replace(',', ''))
-        s_is_num = True
-    except:
-        pass
-    try:
-        t_float = float(t_str.replace(',', ''))
-        t_is_num = True
-    except:
-        pass
+    num_result, s_is_num, _, _ = _check_numeric_mismatch(s_str, t_str)
+    if num_result is not None:
+        return num_result
 
-    if s_is_num and t_is_num:
-        if s_float == t_float:
-            return "Type Coercion / Formatting"
-        s_decimals = len(s_str.split('.')[-1]) if '.' in s_str else 0
-        t_decimals = len(t_str.split('.')[-1]) if '.' in t_str else 0
-        if s_decimals != t_decimals:
-            min_dec = min(s_decimals, t_decimals)
-            if round(s_float, min_dec) == round(t_float, min_dec):
-                return "Precision / Rounding"
-
-    bool_vals = ['true', 'false', 'y', 'n', 'yes', 'no', '1', '0']
-    if s_lower in bool_vals and t_lower in bool_vals:
+    if s_lower in BOOL_VALS and t_lower in BOOL_VALS:
         return "Boolean Format Mismatch"
 
-    if len(s_str) > 0 and len(t_str) > 0:
+    if s_str and t_str:
         if (s_str.startswith(t_str) or t_str.startswith(s_str)) and abs(len(s_str) - len(t_str)) > 0:
             return "Data Truncation"
 
-    if is_date_like(s_str) and is_date_like(t_str):
-        return "Date/Timestamp Mismatch"
-    if s_is_num and t_is_num:
-        return "Numeric Data Mismatch"
+        if is_date_like(s_str) and is_date_like(t_str):
+            return "Date/Timestamp Mismatch"
+        if s_is_num:
+            return "Numeric Data Mismatch"
     return "String Data Mismatch"
 
 
-def build_error_matrix(cursor, col_map):
+def _append_report_data(full_report_data: dict, mtype: str, rk: str, col_name: str, source: str | None, target: str | None) -> None:
+    if mtype not in full_report_data:
+        full_report_data[mtype] = []
+    full_report_data[mtype].append({
+        "row": rk, "column": col_name,
+        "source": source if source is not None else "[NULL]",
+        "target": target if target is not None else "[NULL]"
+    })
+
+
+def _record_sorting_issue(matrix: dict, samples: dict, full_report_data: dict, col_name: str, rk: str, s_vals: list, t_vals: list) -> None:
+    mtype = "Sorting Issue"
+    matrix[col_name][mtype] += len(s_vals)
+    if len(samples[col_name][mtype]) < 5:
+        samples[col_name][mtype].append({
+            "row": rk,
+            "src": " | ".join([v if v is not None else "[NULL]" for v in s_vals]),
+            "tgt": " | ".join([v if v is not None else "[NULL]" for v in t_vals])
+        })
+    for i in range(len(s_vals)):
+        _append_report_data(full_report_data, mtype, rk, col_name, s_vals[i], t_vals[i])
+
+
+def _record_pair_issue(matrix: dict, samples: dict, full_report_data: dict, col_name: str, rk: str, sv: str | None, tv: str | None, mtype: str) -> None:
+    if mtype is None:
+        return
+    matrix[col_name][mtype] += 1
+    if len(samples[col_name][mtype]) < 5:
+        samples[col_name][mtype].append({"row": rk, "src": sv, "tgt": tv})
+    _append_report_data(full_report_data, mtype, rk, col_name, sv, tv)
+
+
+def _process_column_pairs(matrix: dict, samples: dict, full_report_data: dict, col_name: str, rk: str, s_vals: list, t_vals: list) -> None:
+    if Counter(s_vals) == Counter(t_vals) and len(s_vals) > 1:
+        _record_sorting_issue(matrix, samples, full_report_data, col_name, rk, s_vals, t_vals)
+    else:
+        for i in range(max(len(s_vals), len(t_vals))):
+            sv = s_vals[i] if i < len(s_vals) else None
+            tv = t_vals[i] if i < len(t_vals) else None
+            if sv != tv:
+                mtype = "Duplicate Value Mismatch" if i >= min(len(s_vals), len(t_vals)) else get_mismatch_type(sv, tv)
+                _record_pair_issue(matrix, samples, full_report_data, col_name, rk, sv, tv, mtype)
+
+
+def build_error_matrix(cursor: sqlite3.Cursor, col_map: dict) -> tuple[dict, dict, dict]:
     matrix = {}
     samples = {}
     full_report_data = {}
@@ -285,21 +333,22 @@ def build_error_matrix(cursor, col_map):
     cursor.execute("SELECT * FROM Differences ORDER BY RowKey, System")
     all_diffs = cursor.fetchall()
     col_desc = [d[0] for d in cursor.description]
+    col_index = {name: i for i, name in enumerate(col_desc)}
 
     row_groups = {}
     for r in all_diffs:
-        rk = r[col_desc.index('RowKey')]
+        rk = r[col_index['RowKey']]
         if rk not in row_groups:
             row_groups[rk] = {'0': [], '1': []}
-        row_groups[rk][str(r[col_desc.index('System')])].append(r)
+        row_groups[rk][str(r[col_index['System']])].append(r)
 
     for rk, systems in row_groups.items():
         src_rows = systems['0']
         tgt_rows = systems['1']
 
         affected_indices = set()
-        for r in src_rows + tgt_rows:
-            idx_str = r[col_desc.index('Affected Column Indexes')]
+        for diff_row in src_rows + tgt_rows:
+            idx_str = diff_row[col_index['Affected Column Indexes']]
             if idx_str:
                 affected_indices.update(str(idx_str).split(','))
 
@@ -309,135 +358,61 @@ def build_error_matrix(cursor, col_map):
                 matrix[col_name] = {k: 0 for k in ERROR_TYPES}
                 samples[col_name] = {k: [] for k in matrix[col_name].keys()}
 
-            try:
-                v_idx = col_desc.index(idx)
-            except ValueError:
+            v_idx = col_index.get(idx)
+            if v_idx is None:
                 continue
 
             s_vals = [str(r[v_idx]) if r[v_idx] is not None else None for r in src_rows]
             t_vals = [str(r[v_idx]) if r[v_idx] is not None else None for r in tgt_rows]
 
-            if Counter(s_vals) == Counter(t_vals) and len(s_vals) > 1:
-                mtype = "Sorting Issue"
-                matrix[col_name][mtype] += len(s_vals)
-                if len(samples[col_name][mtype]) < 5:
-                    samples[col_name][mtype].append({
-                        "row": rk,
-                        "src": " | ".join([v if v is not None else "[NULL]" for v in s_vals]),
-                        "tgt": " | ".join([v if v is not None else "[NULL]" for v in t_vals])
-                    })
-                if mtype not in full_report_data:
-                    full_report_data[mtype] = []
-                for i in range(len(s_vals)):
-                    full_report_data[mtype].append({
-                        "row": rk,
-                        "column": col_name,
-                        "source": s_vals[i] if s_vals[i] is not None else "[NULL]",
-                        "target": t_vals[i] if t_vals[i] is not None else "[NULL]"
-                    })
-            else:
-                for i in range(max(len(s_vals), len(t_vals))):
-                    sv = s_vals[i] if i < len(s_vals) else None
-                    tv = t_vals[i] if i < len(t_vals) else None
-                    if sv != tv:
-                        if i >= min(len(s_vals), len(t_vals)):
-                            mtype = "Duplicate Value Mismatch"
-                        else:
-                            mtype = get_mismatch_type(sv, tv)
-                        if mtype is not None:
-                            matrix[col_name][mtype] += 1
-                            if len(samples[col_name][mtype]) < 5:
-                                samples[col_name][mtype].append({"row": rk, "src": sv, "tgt": tv})
-                            if mtype not in full_report_data:
-                                full_report_data[mtype] = []
-                            full_report_data[mtype].append({
-                                "row": rk,
-                                "column": col_name,
-                                "source": sv if sv is not None else "[NULL]",
-                                "target": tv if tv is not None else "[NULL]"
-                            })
+            _process_column_pairs(matrix, samples, full_report_data, col_name, rk, s_vals, t_vals)
 
     return matrix, samples, full_report_data
 
 
-def get_meta(cursor, key):
+def get_meta(cursor: sqlite3.Cursor, key: str) -> str | None:
     cursor.execute("SELECT Value FROM Metadata WHERE Key = ?", (key,))
     res = cursor.fetchone()
     return res[0] if res else "0"
 
 
-def extract_unmatched_invalid(cursor):
-    unmatched_src_rows = []
-    unmatched_src_cols = []
-    try:
-        cursor.execute("SELECT ColumnId, ColumnName FROM ColumnNames WHERE TableName='UnmatchedSource'")
-        unmatched_src_col_map = {str(row[0]): row[1] for row in cursor.fetchall()}
-        cursor.execute("SELECT * FROM UnmatchedSource LIMIT 50")
-        unmatched_src_raw = cursor.fetchall()
-        unmatched_src_desc = [d[0] for d in cursor.description]
-        unmatched_src_cols = [unmatched_src_col_map.get(str(col), str(col)) for col in unmatched_src_desc]
-        unmatched_src_rows = [list(r) for r in unmatched_src_raw]
-    except Exception as e:
-        print(f"Error fetching UnmatchedSource: {e}")
-
-    unmatched_tgt_rows = []
-    unmatched_tgt_cols = []
-    try:
-        cursor.execute("SELECT ColumnId, ColumnName FROM ColumnNames WHERE TableName='UnmatchedTarget'")
-        unmatched_tgt_col_map = {str(row[0]): row[1] for row in cursor.fetchall()}
-        cursor.execute("SELECT * FROM UnmatchedTarget LIMIT 50")
-        unmatched_tgt_raw = cursor.fetchall()
-        unmatched_tgt_desc = [d[0] for d in cursor.description]
-        unmatched_tgt_cols = [unmatched_tgt_col_map.get(str(col), str(col)) for col in unmatched_tgt_desc]
-        unmatched_tgt_rows = [list(r) for r in unmatched_tgt_raw]
-    except Exception as e:
-        print(f"Error fetching UnmatchedTarget: {e}")
-
-    invalid_src_rows = []
-    invalid_src_cols = []
-    try:
-        cursor.execute("SELECT * FROM InvalidSource LIMIT 50")
-        invalid_src_raw = cursor.fetchall()
-        invalid_src_cols = [d[0] for d in cursor.description]
-        invalid_src_rows = [list(r) for r in invalid_src_raw]
-    except Exception as e:
-        print(f"Error fetching InvalidSource: {e}")
-
-    invalid_tgt_rows = []
-    invalid_tgt_cols = []
-    try:
-        cursor.execute("SELECT * FROM InvalidTarget LIMIT 50")
-        invalid_tgt_raw = cursor.fetchall()
-        invalid_tgt_cols = [d[0] for d in cursor.description]
-        invalid_tgt_rows = [list(r) for r in invalid_tgt_raw]
-    except Exception as e:
-        print(f"Error fetching InvalidTarget: {e}")
+def extract_unmatched_invalid(cursor: sqlite3.Cursor) -> dict:
+    def _fetch_table(table_name: str, has_column_names: bool = False, limit: int = 50) -> dict:
+        rows = []
+        cols = []
+        try:
+            if has_column_names:
+                cursor.execute("SELECT ColumnId, ColumnName FROM ColumnNames WHERE TableName=?", (table_name,))
+                col_map = {str(row[0]): row[1] for row in cursor.fetchall()}
+            cursor.execute(f"SELECT * FROM [{table_name}] LIMIT ?", (limit,))
+            raw = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            if has_column_names:
+                cols = [col_map.get(str(c), str(c)) for c in cols]
+            rows = [list(r) for r in raw]
+        except Exception as e:
+            print(f"Error fetching {table_name}: {e}", file=sys.stderr)
+        return {"columns": cols, "rows": rows}
 
     return {
-        "unmatched_src": {"columns": unmatched_src_cols, "rows": unmatched_src_rows},
-        "unmatched_tgt": {"columns": unmatched_tgt_cols, "rows": unmatched_tgt_rows},
-        "invalid_src": {"columns": invalid_src_cols, "rows": invalid_src_rows},
-        "invalid_tgt": {"columns": invalid_tgt_cols, "rows": invalid_tgt_rows}
+        "unmatched_src": _fetch_table("UnmatchedSource", has_column_names=True),
+        "unmatched_tgt": _fetch_table("UnmatchedTarget", has_column_names=True),
+        "invalid_src": _fetch_table("InvalidSource"),
+        "invalid_tgt": _fetch_table("InvalidTarget")
     }
 
 
-def extract_orphan_counts(cursor):
-    try:
-        src_not_found = int(get_meta(cursor, '$.reportInfo.comparisonOverview.sourceRowsNotFound'))
-    except:
-        src_not_found = 0
-    try:
-        tgt_not_found = int(get_meta(cursor, '$.reportInfo.comparisonOverview.targetRowsNotFound'))
-    except:
-        tgt_not_found = 0
-    try:
-        invalid_src_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.invalidSourceRows'))
-    except:
-        invalid_src_count = 0
-    try:
-        invalid_tgt_count = int(get_meta(cursor, '$.reportInfo.comparisonOverview.invalidTargetRows'))
-    except:
-        invalid_tgt_count = 0
+def extract_orphan_counts(cursor: sqlite3.Cursor) -> dict:
+    def _safe_int_meta(cursor: sqlite3.Cursor, key: str, default: int = 0) -> int:
+        try:
+            return int(get_meta(cursor, key))
+        except Exception:
+            return default
+
+    src_not_found = _safe_int_meta(cursor, '$.reportInfo.comparisonOverview.sourceRowsNotFound')
+    tgt_not_found = _safe_int_meta(cursor, '$.reportInfo.comparisonOverview.targetRowsNotFound')
+    invalid_src_count = _safe_int_meta(cursor, '$.reportInfo.comparisonOverview.invalidSourceRows')
+    invalid_tgt_count = _safe_int_meta(cursor, '$.reportInfo.comparisonOverview.invalidTargetRows')
     return {
         "src_not_found": src_not_found,
         "tgt_not_found": tgt_not_found,
@@ -446,21 +421,22 @@ def extract_orphan_counts(cursor):
     }
 
 
-def prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate):
-    sorted_matrix = sorted(
-        [{"Name": k, **v, "Total": sum(v.values())} for k, v in matrix.items()],
-        key=lambda x: x['Total'], reverse=True
-    )
+def _assign_grade(pass_rate: float) -> dict:
+    if pass_rate > 95:
+        return dict(grade='A+', grade_color_text='#15803d', grade_color_bg='rgba(22,163,74,0.15)', grade_color_border='rgba(22,163,74,0.4)')
+    if pass_rate > 90:
+        return dict(grade='A', grade_color_text='#16a34a', grade_color_bg='rgba(74,222,128,0.15)', grade_color_border='rgba(74,222,128,0.4)')
+    if pass_rate > 85:
+        return dict(grade='B', grade_color_text='#d97706', grade_color_bg='rgba(217,119,6,0.15)', grade_color_border='rgba(217,119,6,0.4)')
+    if pass_rate > 80:
+        return dict(grade='C', grade_color_text='#ca8a04', grade_color_bg='rgba(250,204,21,0.15)', grade_color_border='rgba(250,204,21,0.4)')
+    return dict(grade='D', grade_color_text='#dc2626', grade_color_bg='rgba(239,68,68,0.15)', grade_color_border='rgba(239,68,68,0.4)')
 
-    bar_chart_labels = [r['Name'] for r in sorted_matrix[:5]]
-    bar_chart_values = [r['Total'] for r in sorted_matrix[:5]]
 
+def _compute_kpis(sorted_matrix: list, matched_count: int, total_rows: int, diff_row_count: int) -> dict:
     match_pct = round((matched_count / total_rows) * 100, 1) if total_rows > 0 else 0
     diff_pct = round((diff_row_count / total_rows) * 100, 1) if total_rows > 0 else 0
-    missing_pct = round(100 - match_pct - diff_pct, 1) if total_rows > 0 else 0
-    if missing_pct < 0:
-        missing_pct = 0
-
+    missing_pct = max(0, round(100 - match_pct - diff_pct, 1)) if total_rows > 0 else 0
     affected_columns = len(sorted_matrix)
     critical_fields = sum(1 for r in sorted_matrix if r['Total'] > 1000)
     warning_fields = sum(1 for r in sorted_matrix if 100 < r['Total'] <= 1000)
@@ -470,22 +446,29 @@ def prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate
         r.get('Source Value is NULL', 0) + r.get('Target Value is NULL', 0) for r in sorted_matrix
     )
     null_rate = round((total_null_issues / total_issues_all) * 100, 1) if total_issues_all > 0 else 0
+    return dict(
+        match_pct=match_pct, diff_pct=diff_pct, missing_pct=missing_pct,
+        affected_columns=affected_columns, critical_fields=critical_fields,
+        warning_fields=warning_fields, info_fields=info_fields,
+        total_issues_all=total_issues_all, null_rate=null_rate
+    )
 
-    error_type_keys = ERROR_TYPES
-    error_type_totals = {t: sum(r.get(t, 0) for r in sorted_matrix) for t in error_type_keys}
+
+def prepare_ui_data(matrix: dict, matched_count: int, total_rows: int, diff_row_count: int, pass_rate: float) -> dict:
+    sorted_matrix = sorted(
+        [{"Name": k, **v, "Total": sum(v.values())} for k, v in matrix.items()],
+        key=lambda x: x['Total'], reverse=True
+    )
+
+    kpis = _compute_kpis(sorted_matrix, matched_count, total_rows, diff_row_count)
+    grade_info = _assign_grade(pass_rate)
+
+    bar_chart_labels = [r['Name'] for r in sorted_matrix[:5]]
+    bar_chart_values = [r['Total'] for r in sorted_matrix[:5]]
+
+    error_type_totals = {t: sum(r.get(t, 0) for r in sorted_matrix) for t in ERROR_TYPES}
     dominant_error = max(error_type_totals, key=error_type_totals.get) if error_type_totals else 'N/A'
     dominant_error_short = dominant_error.replace('Data ', '').replace('Value is ', '')
-
-    if pass_rate > 95:
-        grade, grade_color_text, grade_color_bg, grade_color_border = 'A+', '#15803d', 'rgba(22,163,74,0.15)', 'rgba(22,163,74,0.4)'
-    elif pass_rate > 90:
-        grade, grade_color_text, grade_color_bg, grade_color_border = 'A', '#16a34a', 'rgba(74,222,128,0.15)', 'rgba(74,222,128,0.4)'
-    elif pass_rate > 85:
-        grade, grade_color_text, grade_color_bg, grade_color_border = 'B', '#d97706', 'rgba(217,119,6,0.15)', 'rgba(217,119,6,0.4)'
-    elif pass_rate > 80:
-        grade, grade_color_text, grade_color_bg, grade_color_border = 'C', '#ca8a04', 'rgba(250,204,21,0.15)', 'rgba(250,204,21,0.4)'
-    else:
-        grade, grade_color_text, grade_color_bg, grade_color_border = 'D', '#dc2626', 'rgba(239,68,68,0.15)', 'rgba(239,68,68,0.4)'
 
     err_dist_labels = [r['Name'] for r in sorted_matrix]
     err_dist_data = {t: [r[t] for r in sorted_matrix] for t in ERROR_TYPES}
@@ -494,31 +477,20 @@ def prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate
         "sorted_matrix": sorted_matrix,
         "bar_chart_labels": bar_chart_labels,
         "bar_chart_values": bar_chart_values,
-        "match_pct": match_pct,
-        "diff_pct": diff_pct,
-        "missing_pct": missing_pct,
-        "affected_columns": affected_columns,
-        "critical_fields": critical_fields,
-        "warning_fields": warning_fields,
-        "info_fields": info_fields,
-        "total_issues_all": total_issues_all,
-        "null_rate": null_rate,
+        **kpis,
+        **grade_info,
         "dominant_error": dominant_error,
         "dominant_error_short": dominant_error_short,
-        "grade": grade,
-        "grade_color_text": grade_color_text,
-        "grade_color_bg": grade_color_bg,
-        "grade_color_border": grade_color_border,
         "err_dist_labels": err_dist_labels,
         "err_dist_data": err_dist_data
     }
 
-def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_report.html", row_keys=None):
-    start_time = time.time()
-    os.makedirs(os.path.dirname(output_html), exist_ok=True)
-    if not os.path.exists(db_path):
-        print(f"Error: {db_path} not found.")
+def generate_unified_dashboard(db_path: str, output_html: str = "output/tosca_enterprise_report.html", row_keys: list[str] | None = None) -> None:
+    db_path_obj = Path(db_path)
+    if not db_path_obj.exists():
+        print(f"Error: {db_path} not found.", file=sys.stderr)
         return
+    Path(output_html).parent.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -568,52 +540,20 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
     # 3b. UNMATCHED & INVALID DATA EXTRACTION
     # ==========================================
     unmatched_data = extract_unmatched_invalid(cursor)
-    unmatched_src_json = json.dumps(unmatched_data["unmatched_src"])
-    unmatched_tgt_json = json.dumps(unmatched_data["unmatched_tgt"])
-    invalid_src_json = json.dumps(unmatched_data["invalid_src"])
-    invalid_tgt_json = json.dumps(unmatched_data["invalid_tgt"])
-
-    # ==========================================
-    # 3c. ORPHAN COUNTS
-    # ==========================================
     orphan_counts = extract_orphan_counts(cursor)
-    src_not_found = orphan_counts["src_not_found"]
-    tgt_not_found = orphan_counts["tgt_not_found"]
-    invalid_src_count = orphan_counts["invalid_src_count"]
-    invalid_tgt_count = orphan_counts["invalid_tgt_count"]
 
     # ==========================================
     # 4. DATA PREP FOR UI & CHARTS
     # ==========================================
     ui_data = prepare_ui_data(matrix, matched_count, total_rows, diff_row_count, pass_rate)
-    sorted_matrix = ui_data["sorted_matrix"]
-    bar_chart_labels = ui_data["bar_chart_labels"]
-    bar_chart_values = ui_data["bar_chart_values"]
-    match_pct = ui_data["match_pct"]
-    diff_pct = ui_data["diff_pct"]
-    missing_pct = ui_data["missing_pct"]
-    affected_columns = ui_data["affected_columns"]
-    critical_fields = ui_data["critical_fields"]
-    warning_fields = ui_data["warning_fields"]
-    info_fields = ui_data["info_fields"]
-    total_issues_all = ui_data["total_issues_all"]
-    null_rate = ui_data["null_rate"]
-    dominant_error = ui_data["dominant_error"]
-    dominant_error_short = ui_data["dominant_error_short"]
-    grade = ui_data["grade"]
-    grade_color_text = ui_data["grade_color_text"]
-    grade_color_bg = ui_data["grade_color_bg"]
-    grade_color_border = ui_data["grade_color_border"]
-    err_dist_labels = ui_data["err_dist_labels"]
-    err_dist_data = ui_data["err_dist_data"]
 
     # ==========================================
     # 5. HTML GENERATION
     # ==========================================
     # Serialize data for client-side Excel generation
-    full_report_json_escaped = json.dumps(full_report_data).replace('</', '<\\/')
+    full_report_json_escaped = _json_safe(full_report_data)
     error_types_json = json.dumps(ERROR_TYPES)
-    matrix_json_escaped = json.dumps(matrix).replace('</', '<\\/')
+    matrix_json_escaped = _json_safe(matrix)
 
     ctx = {
         "report_date": report_date,
@@ -629,41 +569,22 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
         "target_sql": target_sql,
         "col_map": col_map,
         "row_key_columns": row_key_columns,
-        "sorted_matrix": sorted_matrix,
         "samples": samples,
         "full_report_data": full_report_data,
         "full_report_json_escaped": full_report_json_escaped,
         "error_types_json": error_types_json,
         "matrix_json_escaped": matrix_json_escaped,
-        "bar_chart_labels": bar_chart_labels,
-        "bar_chart_values": bar_chart_values,
-        "match_pct": match_pct,
-        "diff_pct": diff_pct,
-        "missing_pct": missing_pct,
-        "affected_columns": affected_columns,
-        "critical_fields": critical_fields,
-        "warning_fields": warning_fields,
-        "info_fields": info_fields,
-        "total_issues_all": total_issues_all,
-        "null_rate": null_rate,
-        "dominant_error": dominant_error,
-        "dominant_error_short": dominant_error_short,
-        "grade": grade,
-        "grade_color_text": grade_color_text,
-        "grade_color_bg": grade_color_bg,
-        "grade_color_border": grade_color_border,
-        "err_dist_labels": err_dist_labels,
-        "err_dist_data": err_dist_data,
+        **ui_data,
         "error_types": ERROR_TYPES,
         "color_map": COLOR_MAP,
-        "unmatched_src_json": unmatched_src_json,
-        "unmatched_tgt_json": unmatched_tgt_json,
-        "invalid_src_json": invalid_src_json,
-        "invalid_tgt_json": invalid_tgt_json,
-        "src_not_found": src_not_found,
-        "tgt_not_found": tgt_not_found,
-        "invalid_src_count": invalid_src_count,
-        "invalid_tgt_count": invalid_tgt_count,
+        "unmatched_src_json": json.dumps(unmatched_data["unmatched_src"]),
+        "unmatched_tgt_json": json.dumps(unmatched_data["unmatched_tgt"]),
+        "invalid_src_json": json.dumps(unmatched_data["invalid_src"]),
+        "invalid_tgt_json": json.dumps(unmatched_data["invalid_tgt"]),
+        "src_not_found": orphan_counts["src_not_found"],
+        "tgt_not_found": orphan_counts["tgt_not_found"],
+        "invalid_src_count": orphan_counts["invalid_src_count"],
+        "invalid_tgt_count": orphan_counts["invalid_tgt_count"],
         "db_path": db_path,
     }
     html_content = generate_html(ctx)
@@ -674,7 +595,18 @@ def generate_unified_dashboard(db_path, output_html="output/tosca_enterprise_rep
 
 
 
-def generate_html(ctx):
+def _row_key_chip(text: str, color_class: str) -> str:
+    display = html.escape(text) if text.strip() else "\u2014"
+    return f'<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold {color_class} mr-1 mb-1.5">{display}</span>'
+
+
+def format_row_key(raw_key: str) -> str:
+    parts = raw_key.split('|')
+    n = len(_ROW_KEY_COLORS)
+    return ''.join(_row_key_chip(p, _ROW_KEY_COLORS[i % n]) for i, p in enumerate(parts))
+
+
+def generate_html(ctx: dict) -> str:
     report_date = ctx["report_date"]
     total_rows = ctx["total_rows"]
     matched_count = ctx["matched_count"]
@@ -769,17 +701,6 @@ def generate_html(ctx):
             if smps:
                 headers = "<th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Row-key</th><th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Source Value</th><th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Target Value</th>" if issue_type != "Sorting Issue" else "<th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Row-key</th><th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Source Collection</th><th class='pb-2 text-slate-500 dark:text-slate-400 font-semibold'>Target Collection</th>"
                 placeholder = "[MISSING]" if issue_type == "Duplicate Value Mismatch" else "[NULL]"
-                def format_row_key(raw_key):
-                    parts = raw_key.split('|')
-                    colors = ['bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-                              'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
-                              'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-                              'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300']
-                    chips = ''.join(
-                        f'<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold {colors[i % len(colors)]} mr-1 mb-1.5">{html.escape(p) if p.strip() else "—"}</span>'
-                        for i, p in enumerate(parts)
-                    )
-                    return chips
                 smps_list = ""
                 for s in smps:
                     src_val = s['src']
@@ -1486,10 +1407,10 @@ def generate_html(ctx):
                                 <span class="grade-badge text-[11px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border" style="background:{grade_color_bg}; color:{grade_color_text}; border-color:{grade_color_border};">Grade {grade}</span>
                             </h1>
                             <p class="text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wide font-bold mt-0.5 flex items-center gap-1.5">
-                                <span>{os.path.basename(db_path)[:40]}{'...' if len(os.path.basename(db_path)) > 40 else ''}</span>
+                                <span>{Path(db_path).name[:40]}{'...' if len(Path(db_path).name) > 40 else ''}</span>
                                 <span class="info-tooltip-wrapper relative inline-flex items-center">
                                     <svg class="w-3 h-3 text-slate-400 dark:text-slate-600 hover:text-indigo-500 dark:hover:text-indigo-400 cursor-default transition-colors shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-                                    <span class="info-tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[11px] font-mono normal-case tracking-normal whitespace-nowrap pointer-events-none z-50 opacity-0 transition-opacity duration-200 bg-slate-900 dark:bg-slate-700 text-slate-100 border border-slate-700 dark:border-slate-600 shadow-xl">{os.path.basename(db_path)}</span>
+                                    <span class="info-tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-[11px] font-mono normal-case tracking-normal whitespace-nowrap pointer-events-none z-50 opacity-0 transition-opacity duration-200 bg-slate-900 dark:bg-slate-700 text-slate-100 border border-slate-700 dark:border-slate-600 shadow-xl">{Path(db_path).name}</span>
                                 </span>
                             </p>
                         </div>
@@ -3145,10 +3066,14 @@ def generate_html(ctx):
     return html_content
 
 
-if __name__ == "__main__":
-    db_name = "tosca_report.db"
+def main() -> None:
+    db_name = sys.argv[1] if len(sys.argv) > 1 else "tosca_report.db"
     row_keys = ['col1', 'col2', 'col3', 'col4', 'col5']
     generate_unified_dashboard(db_name, row_keys=row_keys)
+
+
+if __name__ == "__main__":
+    main()
 
 
 
